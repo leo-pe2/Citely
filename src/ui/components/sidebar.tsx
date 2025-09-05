@@ -46,31 +46,53 @@ function Sidebar() {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        <AnimatePresence initial={false}>
-          {isOpen && (
-            <motion.nav
-              key="sidebar-content"
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="h-full overflow-auto"
-            >
-              <ul className="space-y-1 px-2">
-                <li>
-                  <a className="flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100" href="#">
-                    <span>Item 1</span>
-                  </a>
-                </li>
-                <li>
-                  <a className="flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100" href="#">
-                    <span>Item 2</span>
-                  </a>
-                </li>
-              </ul>
-            </motion.nav>
-          )}
-        </AnimatePresence>
+        <motion.nav
+          key="sidebar-content"
+          className="h-full overflow-auto"
+        >
+          <ul className="space-y-1 px-2">
+            <li>
+              <a className="flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100" href="#">
+                <div className="flex-1 overflow-hidden">
+                  <AnimatePresence initial={false} mode="wait">
+                    {isOpen && (
+                      <motion.span
+                        key="item1-text"
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -6 }}
+                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                        className="block truncate"
+                      >
+                        Item 1
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a className="flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100" href="#">
+                <div className="flex-1 overflow-hidden">
+                  <AnimatePresence initial={false} mode="wait">
+                    {isOpen && (
+                      <motion.span
+                        key="item2-text"
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -6 }}
+                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                        className="block truncate"
+                      >
+                        Item 2
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </a>
+            </li>
+          </ul>
+        </motion.nav>
       </div>
     </motion.aside>
   )
