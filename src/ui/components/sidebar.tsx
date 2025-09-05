@@ -45,10 +45,10 @@ function Sidebar() {
       transition={{ type: 'spring', stiffness: 260, damping: 30, mass: 0.4 }}
       className={`h-full border-r border-gray-200 bg-white flex flex-col`}
     >
-      <div className="h-12 flex items-center justify-between px-2">
-        <div className="flex-1 overflow-hidden">
-          <AnimatePresence initial={false} mode="wait">
-            {isOpen && (
+      <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-2`}>
+        {isOpen ? (
+          <div className="flex-1 overflow-hidden">
+            <AnimatePresence initial={false} mode="wait">
               <motion.div
                 key="sidebar-title"
                 initial={{ opacity: 0, x: -6 }}
@@ -59,9 +59,9 @@ function Sidebar() {
               >
                 Projects
               </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+            </AnimatePresence>
+          </div>
+        ) : null}
 
         <button
           className="h-8 w-8 flex items-center justify-center rounded hover:bg-gray-100"
@@ -79,34 +79,34 @@ function Sidebar() {
           key="sidebar-content"
           className="h-full overflow-auto"
         >
-          <div className="px-2 py-2">
-            {isOpen ? (
+          {isOpen ? (
+            <div className="px-2 py-2">
               <button
                 className="flex w-full items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100"
                 onClick={() => setIsCreateOpen(true)}
               >
                 <img src={folderPlusIcon} alt="" className="h-4 w-4" />
-                <span>New Project</span>
+                <span className="whitespace-nowrap">New Project</span>
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
-          <ul className="space-y-1 px-2">
-            {projects.map((p) => (
-              <li key={p.id}>
-                <a className="flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100" href="#">
-                  <div className="flex-1 overflow-hidden">
-                    {isOpen ? (
+          {isOpen ? (
+            <ul className="space-y-1 px-2">
+              {projects.map((p) => (
+                <li key={p.id}>
+                  <a className="flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100" href="#">
+                    <div className="flex-1 overflow-hidden min-w-0">
                       <div className="flex items-center gap-2">
                         <img src={folderIcon} alt="" className="h-4 w-4" />
                         <span className="block truncate">{p.name}</span>
                       </div>
-                    ) : null}
-                  </div>
-                </a>
-              </li>
-            ))}
-          </ul>
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </motion.nav>
       </div>
       <CreateProjectModal
