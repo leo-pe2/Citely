@@ -95,10 +95,17 @@ app.on('ready', () => {
     if (isDev) {
         const devIconPathPng = path.join(app.getAppPath(), 'desktopIcon.png');
         const devIconPathIcns = path.join(app.getAppPath(), 'desktopIcon.icns');
-        const chosen = existsSync(devIconPathIcns) ? devIconPathIcns : devIconPathPng;
         if (process.platform === 'darwin' && app.dock) {
-            const img = nativeImage.createFromPath(chosen);
-            if (!img.isEmpty()) {
+            let img: ReturnType<typeof nativeImage.createFromPath> | null = null;
+            if (existsSync(devIconPathIcns)) {
+                const maybeIcns = nativeImage.createFromPath(devIconPathIcns);
+                if (!maybeIcns.isEmpty()) img = maybeIcns;
+            }
+            if (!img && existsSync(devIconPathPng)) {
+                const maybePng = nativeImage.createFromPath(devIconPathPng);
+                if (!maybePng.isEmpty()) img = maybePng;
+            }
+            if (img) {
                 app.dock.setIcon(img);
             }
         }
