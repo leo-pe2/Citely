@@ -15,6 +15,11 @@ type Project = {
     path: string;
 };
 
+type ChildFolder = {
+    name: string;
+    path: string;
+};
+
 // ESM-safe __filename/__dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,6 +64,32 @@ async function createProject(requestedName: string): Promise<Project> {
     return { id: candidate, name: candidate, path: projectDir };
 }
 
+async function listChildFolders(categoryPath: string): Promise<ChildFolder[]> {
+    const entries = await fs.readdir(categoryPath, { withFileTypes: true });
+    const folders: ChildFolder[] = [];
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            const dirName = entry.name;
+            const fullPath = path.join(categoryPath, dirName);
+            folders.push({ name: dirName, path: fullPath });
+        }
+    }
+    return folders;
+}
+
+async function createChildFolder(categoryPath: string, requestedName: string): Promise<ChildFolder> {
+    const baseName = requestedName.trim() || 'New Folder';
+    let candidate = baseName;
+    let suffix = 2;
+    while (existsSync(path.join(categoryPath, candidate))) {
+        candidate = `${baseName} (${suffix})`;
+        suffix += 1;
+    }
+    const full = path.join(categoryPath, candidate);
+    await fs.mkdir(full, { recursive: true });
+    return { name: candidate, path: full };
+}
+
 app.on('ready', () => {
     // In development, set the app/dock icon from the project root desktopIcon.png
     if (isDev) {
@@ -93,5 +124,11 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:create', async (_event, name: string) => {
         return createProject(name);
+    });
+    ipcMain.handle('projects:children:list', async (_event, categoryPath: string) => {
+        return listChildFolders(categoryPath);
+    });
+    ipcMain.handle('projects:children:create', async (_event, categoryPath: string, name: string) => {
+        return createChildFolder(categoryPath, name);
     });
 });

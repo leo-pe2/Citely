@@ -4,9 +4,11 @@ type CreateProjectModalProps = {
   isOpen: boolean
   onClose: () => void
   onCreate: (name: string) => void | Promise<void>
+  title?: string
+  placeholder?: string
 }
 
-export default function CreateProjectModal({ isOpen, onClose, onCreate }: CreateProjectModalProps) {
+export default function CreateProjectModal({ isOpen, onClose, onCreate, title = 'Create New Category', placeholder = 'Category name' }: CreateProjectModalProps) {
   const [name, setName] = useState('')
 
   useEffect(() => {
@@ -44,12 +46,12 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }: Create
         className="relative z-10 w-full max-w-sm rounded-lg bg-white p-4 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-3 text-base font-medium">Create New Project</div>
+        <div className="mb-3 text-base font-medium">{title}</div>
         <input
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Project name"
+          placeholder={placeholder}
           className="mb-4 w-full rounded border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-300"
         />
         <div className="flex items-center justify-end gap-2">

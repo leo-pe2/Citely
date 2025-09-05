@@ -3,3 +3,13 @@
 html, body {
   font-family: var(--font-sans);
 }
+
+/* Show pointer cursor on interactive elements */
+button,
+[role="button"],
+a[href],
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  cursor: pointer;
+}
