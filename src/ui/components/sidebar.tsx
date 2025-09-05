@@ -88,7 +88,7 @@ function Sidebar() {
     <motion.aside
       initial={false}
       animate={{ width: isOpen ? OPEN_WIDTH : CLOSED_WIDTH }}
-      transition={{ type: 'spring', stiffness: 260, damping: 30, mass: 0.4 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 26, mass: 0.4 }}
       className={`h-full border-r border-gray-200 bg-white flex flex-col`}
     >
       <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-2`}>
@@ -100,7 +100,7 @@ function Sidebar() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
                 className="text-sm font-medium truncate"
               >
                 Library
@@ -132,7 +132,7 @@ function Sidebar() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.28, ease: 'easeInOut' }}
+                transition={{ duration: 0.22, ease: 'easeInOut' }}
                 className="px-2 py-2"
               >
                 <button
@@ -143,7 +143,7 @@ function Sidebar() {
                   <motion.span
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
                     className="whitespace-nowrap"
                   >
                     New Category
@@ -160,7 +160,7 @@ function Sidebar() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.28, ease: 'easeInOut' }}
+                transition={{ duration: 0.22, ease: 'easeInOut' }}
                 className="space-y-1 px-2"
               >
                 {projects.map((p) => (
