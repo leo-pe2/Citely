@@ -43,7 +43,7 @@ function Sidebar() {
       initial={false}
       animate={{ width: isOpen ? OPEN_WIDTH : CLOSED_WIDTH }}
       transition={{ type: 'spring', stiffness: 260, damping: 30, mass: 0.4 }}
-      className={`fixed left-0 top-0 bottom-0 z-30 h-full border-r border-gray-200 bg-white flex flex-col`}
+      className={`h-full border-r border-gray-200 bg-white flex flex-col`}
     >
       <div className="h-12 flex items-center justify-between px-2">
         <div className="flex-1 overflow-hidden">
