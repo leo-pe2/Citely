@@ -2,8 +2,8 @@ import React from 'react'
 
 function App() {
   return (
-    <div style={{ height: '100vh', width: '100vw', display: 'grid', placeItems: 'center' }}>
-      <div>Test</div>
+    <div className="h-screen w-screen grid place-items-center">
+      <div className="text-xl font-medium">Test</div>
     </div>
   )
 }
