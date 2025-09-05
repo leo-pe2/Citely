@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
@@ -60,6 +60,17 @@ async function createProject(requestedName: string): Promise<Project> {
 }
 
 app.on('ready', () => {
+    // In development, set the app/dock icon from the project root desktopIcon.png
+    if (isDev) {
+        const devIconPath = path.join(app.getAppPath(), 'desktopIcon.png');
+        if (process.platform === 'darwin' && app.dock) {
+            const img = nativeImage.createFromPath(devIconPath);
+            if (!img.isEmpty()) {
+                app.dock.setIcon(img);
+            }
+        }
+    }
+
     const mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
@@ -68,6 +79,7 @@ app.on('ready', () => {
             nodeIntegration: false,
             preload: path.join(__dirname, 'preload.cjs'),
         },
+        ...(isDev ? { icon: path.join(app.getAppPath(), 'desktopIcon.png') } : {}),
     });
     if (isDev) {
         mainWindow.loadURL('http://localhost:5123');

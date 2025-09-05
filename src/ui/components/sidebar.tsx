@@ -57,7 +57,7 @@ function Sidebar() {
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="text-sm font-medium truncate"
               >
-                Projects
+                Library
               </motion.div>
             </AnimatePresence>
           </div>
@@ -100,7 +100,7 @@ function Sidebar() {
                     transition={{ duration: 0.2, ease: 'easeOut' }}
                     className="whitespace-nowrap"
                   >
-                    New Project
+                    New Category
                   </motion.span>
                 </button>
               </motion.div>
