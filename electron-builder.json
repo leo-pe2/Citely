@@ -1,0 +1,28 @@
+{
+    "appId": "com.leonard-penzenstadler.reseach",
+    "files": [
+      "dist-electron/**",
+      "dist-react/**",
+      "package.json"
+    ],
+    "extraResources": [
+      "dist-electron/preload.cjs",
+      "src/assets/**"
+    ],
+    "icon": "./desktopIcon.png",
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility"
+    },
+    "win": {
+      "target": ["portable", "msi"],
+      "icon": "./desktopIcon.png"
+    },
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false
+}
+
+
