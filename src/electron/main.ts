@@ -93,9 +93,11 @@ async function createChildFolder(categoryPath: string, requestedName: string): P
 app.on('ready', () => {
     // In development, set the app/dock icon from the project root desktopIcon.png
     if (isDev) {
-        const devIconPath = path.join(app.getAppPath(), 'desktopIcon.png');
+        const devIconPathPng = path.join(app.getAppPath(), 'desktopIcon.png');
+        const devIconPathIcns = path.join(app.getAppPath(), 'desktopIcon.icns');
+        const chosen = existsSync(devIconPathIcns) ? devIconPathIcns : devIconPathPng;
         if (process.platform === 'darwin' && app.dock) {
-            const img = nativeImage.createFromPath(devIconPath);
+            const img = nativeImage.createFromPath(chosen);
             if (!img.isEmpty()) {
                 app.dock.setIcon(img);
             }
@@ -110,7 +112,11 @@ app.on('ready', () => {
             nodeIntegration: false,
             preload: path.join(__dirname, 'preload.cjs'),
         },
-        ...(isDev ? { icon: path.join(app.getAppPath(), 'desktopIcon.png') } : {}),
+        ...(isDev
+            ? { icon: existsSync(path.join(app.getAppPath(), 'desktopIcon.ico'))
+                ? path.join(app.getAppPath(), 'desktopIcon.ico')
+                : path.join(app.getAppPath(), 'desktopIcon.png') }
+            : {}),
     });
     if (isDev) {
         mainWindow.loadURL('http://localhost:5123');
