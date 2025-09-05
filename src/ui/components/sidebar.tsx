@@ -7,7 +7,11 @@ import folderIcon from '../assets/sidebar/folder.svg'
 import folderOpenIcon from '../assets/sidebar/folder-open.svg'
 import CreateProjectModal from './sidebar-popups/create-project'
 
-function Sidebar() {
+type SidebarProps = {
+  onSelectCategory?: (c: { id: string; name: string; path: string }) => void
+}
+
+function Sidebar({ onSelectCategory }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(true)
   type SidebarProject = { id: string; name: string; path: string }
   const [projects, setProjects] = useState<SidebarProject[]>([])
@@ -27,7 +31,16 @@ function Sidebar() {
     }).api
     api?.projects
       .list()
-      .then((items: SidebarProject[]) => setProjects(items))
+      .then((items: SidebarProject[]) => {
+        setProjects(items)
+        const lastId = localStorage.getItem('last-category-id')
+        if (lastId) {
+          const found = items.find((p) => p.id === lastId)
+          if (found) {
+            onSelectCategory?.(found)
+          }
+        }
+      })
       .catch(() => setProjects([]))
   }, [])
 
@@ -62,6 +75,9 @@ function Sidebar() {
     const next = !expanded[category.id]
     setExpanded((prev) => ({ ...prev, [category.id]: next }))
     if (next) await ensureChildrenLoaded(category)
+    // Persist and emit selection when a category is clicked
+    localStorage.setItem('last-category-id', category.id)
+    onSelectCategory?.(category)
   }
 
   async function handleCreateChildFolder(name: string) {
