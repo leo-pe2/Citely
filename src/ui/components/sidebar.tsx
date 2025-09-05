@@ -2,12 +2,15 @@ import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import openIcon from '../assets/panel-right-open.svg'
 import closeIcon from '../assets/panel-right-close.svg'
+import folderPlusIcon from '../assets/sidebar/folder-plus.svg'
+import folderIcon from '../assets/sidebar/folder.svg'
+import CreateProjectModal from './sidebar-popups/create-project'
 
 function Sidebar() {
   const [isOpen, setIsOpen] = useState(true)
   type SidebarProject = { id: string; name: string; path: string }
   const [projects, setProjects] = useState<SidebarProject[]>([])
-  const [newProjectName, setNewProjectName] = useState('')
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const OPEN_WIDTH = 256
   const CLOSED_WIDTH = 56
@@ -22,9 +25,7 @@ function Sidebar() {
       .catch(() => setProjects([]))
   }, [])
 
-  async function handleCreateProject() {
-    const name = newProjectName.trim()
-    if (!name) return
+  async function handleCreateProject(name: string) {
     try {
       const api = (window as unknown as {
         api?: { projects: { create: (n: string) => Promise<SidebarProject> } }
@@ -32,7 +33,6 @@ function Sidebar() {
       if (!api) return
       const created = await api.projects.create(name)
       setProjects((prev) => [...prev, created])
-      setNewProjectName('')
     } catch (e) {
       // noop for now per user guidance to avoid unnecessary code
     }
@@ -81,20 +81,13 @@ function Sidebar() {
         >
           <div className="px-2 py-2">
             {isOpen ? (
-              <div className="flex items-center gap-2">
-                <input
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="New project name"
-                  className="w-full rounded border border-gray-200 px-2 py-1 text-sm outline-none focus:border-gray-300"
-                />
-                <button
-                  className="rounded bg-gray-800 px-2 py-1 text-xs text-white hover:bg-black"
-                  onClick={handleCreateProject}
-                >
-                  Create
-                </button>
-              </div>
+              <button
+                className="flex w-full items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100"
+                onClick={() => setIsCreateOpen(true)}
+              >
+                <img src={folderPlusIcon} alt="" className="h-4 w-4" />
+                <span>New Project</span>
+              </button>
             ) : null}
           </div>
 
@@ -104,7 +97,10 @@ function Sidebar() {
                 <a className="flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100" href="#">
                   <div className="flex-1 overflow-hidden">
                     {isOpen ? (
-                      <span className="block truncate">{p.name}</span>
+                      <div className="flex items-center gap-2">
+                        <img src={folderIcon} alt="" className="h-4 w-4" />
+                        <span className="block truncate">{p.name}</span>
+                      </div>
                     ) : null}
                   </div>
                 </a>
@@ -113,6 +109,11 @@ function Sidebar() {
           </ul>
         </motion.nav>
       </div>
+      <CreateProjectModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onCreate={handleCreateProject}
+      />
     </motion.aside>
   )
 }
