@@ -93,8 +93,26 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
 
   const colors = ['#000000', '#5fa8d3', '#d62828', '#f77f00', '#fcbf49']
 
+  async function handleDeleteCategory() {
+    try {
+      const api = (window as unknown as { api?: { projects: { delete: (idOrPath: string) => Promise<{ ok: true }> } } }).api
+      await api?.projects.delete(id)
+    } finally {
+      window.dispatchEvent(new CustomEvent('project:deleted', { detail: { id } }))
+    }
+  }
+
+  async function handleAddItem() {
+    const api = (window as unknown as { api?: { projects: { items?: { importPdf: (projectId: string) => Promise<{ imported: { fileName: string; path: string }[] }> } } } }).api
+    if (!api?.projects.items?.importPdf) return
+    const res = await api.projects.items.importPdf(id)
+    if (res.imported && res.imported.length > 0) {
+      window.dispatchEvent(new CustomEvent('project:item:imported', { detail: { projectId: id, items: res.imported } }))
+    }
+  }
+
   return (
-    <div className="p-4" ref={containerRef}>
+    <div className="p-4 h-full flex flex-col" ref={containerRef}>
       <div className="flex items-center gap-2">
         <h1 className="text-[46px] font-regular font-heading">{displayName}</h1>
         <div className="relative ml-3">
@@ -147,6 +165,25 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
           placeholder={`A description about ${displayName}`}
           maxLength={40}
         />
+      </div>
+
+      <div className="flex-1 flex items-center justify-center w-full -mt-6">
+        <div className="flex flex-col items-center text-center text-gray-600 mx-auto w-full">
+          <p className="text-lg">
+            This category is empty start
+            <br />
+            by importing a item.
+          </p>
+          <div className="my-6 h-24 w-px bg-gray-300 mx-auto" />
+          <div className="flex flex-col items-center gap-3">
+            <button className="rounded-full bg-gray-200 px-4 py-2 text-base text-gray-700" onClick={handleAddItem}>
+              + Add Item
+            </button>
+            <button className="rounded-full bg-gray-200 px-4 py-2 text-base text-gray-700" onClick={handleDeleteCategory}>
+              × Delete
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

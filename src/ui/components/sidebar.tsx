@@ -65,8 +65,20 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
     function onChanged() {
       setOverrides(readOverrides())
     }
+    function onDeleted(e: Event) {
+      const detail = (e as CustomEvent<{ id: string }>).detail
+      if (!detail) return
+      setProjects((prev) => prev.filter((p) => p.id !== detail.id))
+      if (localStorage.getItem('last-category-id') === String(detail.id)) {
+        localStorage.removeItem('last-category-id')
+      }
+    }
     window.addEventListener('project-overrides:changed', onChanged)
-    return () => window.removeEventListener('project-overrides:changed', onChanged)
+    window.addEventListener('project:deleted', onDeleted)
+    return () => {
+      window.removeEventListener('project-overrides:changed', onChanged)
+      window.removeEventListener('project:deleted', onDeleted)
+    }
   }, [])
 
   async function handleCreateProject(name: string) {

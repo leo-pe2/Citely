@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
@@ -59,6 +59,58 @@ async function createProject(requestedName: string): Promise<Project> {
     return { id: candidate, name: candidate, path: projectDir };
 }
 
+async function deleteProject(projectIdOrPath: string): Promise<{ ok: true }> {
+    const root = await ensureProjectsRoot();
+    // If path points inside root, use as-is; else treat as id under root
+    const candidatePath = projectIdOrPath.startsWith(root)
+        ? projectIdOrPath
+        : path.join(root, projectIdOrPath);
+    if (!candidatePath.startsWith(root)) {
+        throw new Error('Invalid path');
+    }
+    if (!existsSync(candidatePath)) {
+        return { ok: true };
+    }
+    await fs.rm(candidatePath, { recursive: true, force: true });
+    return { ok: true };
+}
+
+async function importPdfIntoProject(projectId: string): Promise<{ imported: { fileName: string; path: string }[] }>
+{
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) {
+        throw new Error('Project not found');
+    }
+
+    const focused = BrowserWindow.getFocusedWindow();
+    const dialogOptions: Electron.OpenDialogOptions = {
+        title: 'Select PDF to import',
+        properties: ['openFile'],
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    };
+    const result = focused
+        ? await dialog.showOpenDialog(focused, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions);
+    if (result.canceled || result.filePaths.length === 0) {
+        return { imported: [] };
+    }
+
+    const srcPath = result.filePaths[0];
+    const baseName = path.basename(srcPath, path.extname(srcPath));
+    const ext = '.pdf';
+    let destName = baseName + ext;
+    let candidate = path.join(projectDir, destName);
+    let suffix = 2;
+    while (existsSync(candidate)) {
+        destName = `${baseName} (${suffix})${ext}`;
+        candidate = path.join(projectDir, destName);
+        suffix += 1;
+    }
+    await fs.copyFile(srcPath, candidate);
+    return { imported: [{ fileName: destName, path: candidate }] };
+}
+
 
 app.on('ready', () => {
     // In development, set the app/dock icon from the project root desktopIcon.png
@@ -107,5 +159,11 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:create', async (_event, name: string) => {
         return createProject(name);
+    });
+    ipcMain.handle('projects:delete', async (_event, idOrPath: string) => {
+        return deleteProject(idOrPath);
+    });
+    ipcMain.handle('projects:item:import-pdf', async (_event, projectId: string) => {
+        return importPdfIntoProject(projectId);
     });
 });
