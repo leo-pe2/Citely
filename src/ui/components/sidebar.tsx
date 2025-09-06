@@ -117,9 +117,9 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.16, ease: 'easeOut' }}
-                className="text-sm font-medium truncate"
+                className="text-sm font-medium truncate pl-2"
               >
-                Library
+                My Library
               </motion.div>
             </AnimatePresence>
           </div>
