@@ -198,9 +198,9 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
         ) : (
           <div className="flex flex-col items-center text-center text-gray-600 mx-auto w-full">
             <p className="text-lg">
-              This category is empty start
+              This category is empty, start
               <br />
-              by importing a item.
+              by importing an item.
             </p>
             <div className="my-6 h-24 w-px bg-gray-300 mx-auto" />
             <div className="flex flex-col items-center gap-3">
