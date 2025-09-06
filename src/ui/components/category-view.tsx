@@ -182,13 +182,15 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
       </div>
       <div className="mt-2">
         <input
-          className="w-full text-base outline-none border-0 focus:ring-0 placeholder-gray-400"
+          className="w-full text-base outline-none border-0 focus:ring-0 placeholder-gray-400 relative z-10"
           value={description}
           onChange={(e) => updateDescription(e.target.value)}
           placeholder={`A description about ${displayName}`}
           maxLength={40}
         />
       </div>
+
+      <hr className="border-t border-gray-200 my-4" />
 
       <div className="flex-1 flex items-center justify-center w-full -mt-6">
         {hasItems ? (
