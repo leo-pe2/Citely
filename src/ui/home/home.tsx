@@ -9,7 +9,7 @@ function Home() {
     <div className="h-screen w-screen flex overflow-hidden">
       <Sidebar onSelectCategory={(c) => setSelected(c)} />
       <main className="flex-1 min-w-0 w-full">
-        {selected ? <CategoryView name={selected.name} /> : null}
+        {selected ? <CategoryView id={selected.id} name={selected.name} /> : null}
       </main>
     </div>
   )

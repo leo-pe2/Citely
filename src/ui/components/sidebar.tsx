@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import openIcon from '../assets/panel-right-open.svg'
 import closeIcon from '../assets/panel-right-close.svg'
 import folderPlusIcon from '../assets/sidebar/folder-plus.svg'
-import folderIcon from '../assets/sidebar/folder.svg'
-import folderOpenIcon from '../assets/sidebar/folder-open.svg'
+import folderIconRaw from '../assets/sidebar/folder.svg?raw'
+import folderOpenIconRaw from '../assets/sidebar/folder-open.svg?raw'
 import CreateProjectModal from './sidebar-popups/create-project'
 
 type SidebarProps = {
@@ -21,6 +21,8 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
   const [childrenMap, setChildrenMap] = useState<Record<string, ChildFolder[]>>({})
   const [isCreateChildOpen, setIsCreateChildOpen] = useState(false)
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null)
+  const [hoveredIconId, setHoveredIconId] = useState<string | null>(null)
+  const [overrides, setOverrides] = useState<Record<string, { name?: string; color?: string }>>({})
 
   const OPEN_WIDTH = 256
   const CLOSED_WIDTH = 56
@@ -42,6 +44,31 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
         }
       })
       .catch(() => setProjects([]))
+  }, [])
+
+  function normalizeSvg(raw: string) {
+    // Only adjust width/height on the root <svg> element. Avoid touching stroke-width, etc.
+    return raw
+      .replace(/(<svg[^>]*?)\swidth="[^"]+"/i, '$1 width="100%"')
+      .replace(/(<svg[^>]*?)\sheight="[^"]+"/i, '$1 height="100%"')
+  }
+
+  function readOverrides() {
+    try {
+      const raw = localStorage.getItem('project-overrides')
+      return raw ? (JSON.parse(raw) as Record<string, { name?: string; color?: string }>) : {}
+    } catch {
+      return {}
+    }
+  }
+
+  useEffect(() => {
+    setOverrides(readOverrides())
+    function onChanged() {
+      setOverrides(readOverrides())
+    }
+    window.addEventListener('project-overrides:changed', onChanged)
+    return () => window.removeEventListener('project-overrides:changed', onChanged)
   }, [])
 
   async function handleCreateProject(name: string) {
@@ -189,15 +216,25 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                         aria-expanded={!!expanded[p.id]}
                         onClick={() => selectCategory(p)}
                       >
-                        <img
-                          src={expanded[p.id] ? folderOpenIcon : folderIcon}
-                          alt=""
+                        <div
                           role="button"
                           className="h-4 w-4 cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation()
                             toggleCategory(p)
                           }}
+                          onMouseEnter={() => setHoveredIconId(p.id)}
+                          onMouseLeave={() => setHoveredIconId(null)}
+                          dangerouslySetInnerHTML={{
+                            __html: normalizeSvg(
+                              expanded[p.id]
+                                ? folderOpenIconRaw
+                                : hoveredIconId === p.id
+                                ? folderOpenIconRaw
+                                : folderIconRaw
+                            ),
+                          }}
+                          style={{ color: overrides[p.id]?.color || '#000000', lineHeight: 0 }}
                         />
                         <motion.span
                           initial={{ opacity: 0 }}
@@ -222,7 +259,11 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                             <ul className="space-y-1">
                               {(childrenMap[p.id] || []).map((c) => (
                                 <li key={c.path} className="px-2 py-1 text-sm flex items-center gap-2 rounded hover:bg-gray-100">
-                                  <img src={folderIcon} alt="" className="h-4 w-4" />
+                                  <div
+                                    className="h-4 w-4"
+                                    dangerouslySetInnerHTML={{ __html: normalizeSvg(folderIconRaw) }}
+                                    style={{ color: '#111827', lineHeight: 0 }}
+                                  />
                                   <span className="block truncate">{c.name}</span>
                                 </li>
                               ))}
