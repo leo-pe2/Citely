@@ -75,7 +75,9 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
     const next = !expanded[category.id]
     setExpanded((prev) => ({ ...prev, [category.id]: next }))
     if (next) await ensureChildrenLoaded(category)
-    // Persist and emit selection when a category is clicked
+  }
+
+  function selectCategory(category: SidebarProject) {
     localStorage.setItem('last-category-id', category.id)
     onSelectCategory?.(category)
   }
@@ -185,9 +187,18 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                       <button
                         className="w-full flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100"
                         aria-expanded={!!expanded[p.id]}
-                        onClick={() => toggleCategory(p)}
+                        onClick={() => selectCategory(p)}
                       >
-                        <img src={expanded[p.id] ? folderOpenIcon : folderIcon} alt="" className="h-4 w-4" />
+                        <img
+                          src={expanded[p.id] ? folderOpenIcon : folderIcon}
+                          alt=""
+                          role="button"
+                          className="h-4 w-4 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleCategory(p)
+                          }}
+                        />
                         <motion.span
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
