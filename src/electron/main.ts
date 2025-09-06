@@ -124,6 +124,17 @@ async function projectHasItems(projectId: string): Promise<{ hasItems: boolean }
     return { hasItems: false };
 }
 
+async function listProjectItems(projectId: string): Promise<{ items: { fileName: string; path: string }[] }> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) return { items: [] };
+    const entries = await fs.readdir(projectDir, { withFileTypes: true });
+    const items = entries
+        .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.pdf'))
+        .map((e) => ({ fileName: e.name, path: path.join(projectDir, e.name) }));
+    return { items };
+}
+
 
 app.on('ready', () => {
     // In development, set the app/dock icon from the project root desktopIcon.png
@@ -181,5 +192,8 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:items:exists', async (_event, projectId: string) => {
         return projectHasItems(projectId);
+    });
+    ipcMain.handle('projects:items:list', async (_event, projectId: string) => {
+        return listProjectItems(projectId);
     });
 });
