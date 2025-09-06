@@ -6,7 +6,7 @@ type CategoryViewProps = {
   name: string
 }
 
-type ProjectOverrides = Record<string, { name?: string; color?: string }>
+type ProjectOverrides = Record<string, { name?: string; color?: string; description?: string }>
 
 function readOverrides(): ProjectOverrides {
   try {
@@ -26,6 +26,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [selectedColor, setSelectedColor] = useState<string>(() => readOverrides()[id]?.color ?? '#000000')
+  const [description, setDescription] = useState<string>(() => readOverrides()[id]?.description ?? '')
 
   const initialName = useMemo(() => {
     const o = readOverrides()
@@ -53,6 +54,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
   useEffect(() => {
     function onOverridesChanged() {
       setSelectedColor(readOverrides()[id]?.color ?? '#000000')
+      setDescription(readOverrides()[id]?.description ?? '')
     }
     window.addEventListener('project-overrides:changed', onOverridesChanged)
     return () => window.removeEventListener('project-overrides:changed', onOverridesChanged)
@@ -61,6 +63,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
   // Keep local selection in sync when switching categories or opening the menu
   useEffect(() => {
     setSelectedColor(readOverrides()[id]?.color ?? '#000000')
+    setDescription(readOverrides()[id]?.description ?? '')
   }, [id, menuOpen])
 
   function updateName(nextName: string) {
@@ -76,6 +79,15 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
     const o = readOverrides()
     const prev = o[id] || {}
     const next: ProjectOverrides = { ...o, [id]: { ...prev, color } }
+    writeOverrides(next)
+  }
+
+  function updateDescription(nextText: string) {
+    const trimmed = nextText.replace(/\n/g, '').slice(0, 40)
+    setDescription(trimmed)
+    const o = readOverrides()
+    const prev = o[id] || {}
+    const next: ProjectOverrides = { ...o, [id]: { ...prev, description: trimmed || undefined } }
     writeOverrides(next)
   }
 
@@ -126,6 +138,15 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
             </div>
           ) : null}
         </div>
+      </div>
+      <div className="mt-2">
+        <input
+          className="w-full text-base outline-none border-0 focus:ring-0 placeholder-gray-400"
+          value={description}
+          onChange={(e) => updateDescription(e.target.value)}
+          placeholder={`A description or notes about ${displayName}`}
+          maxLength={40}
+        />
       </div>
     </div>
   )
