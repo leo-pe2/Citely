@@ -91,7 +91,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
     writeOverrides(next)
   }
 
-  const colors = ['#000000', '#003049', '#d62828', '#f77f00', '#fcbf49']
+  const colors = ['#000000', '#5fa8d3', '#d62828', '#f77f00', '#fcbf49']
 
   return (
     <div className="p-4" ref={containerRef}>
@@ -144,7 +144,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
           className="w-full text-base outline-none border-0 focus:ring-0 placeholder-gray-400"
           value={description}
           onChange={(e) => updateDescription(e.target.value)}
-          placeholder={`A description or notes about ${displayName}`}
+          placeholder={`A description about ${displayName}`}
           maxLength={40}
         />
       </div>

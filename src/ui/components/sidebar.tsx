@@ -16,12 +16,9 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
   type SidebarProject = { id: string; name: string; path: string }
   const [projects, setProjects] = useState<SidebarProject[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  type ChildFolder = { name: string; path: string }
-  const [childrenMap, setChildrenMap] = useState<Record<string, ChildFolder[]>>({})
-  const [isCreateChildOpen, setIsCreateChildOpen] = useState(false)
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null)
+  
   const [hoveredIconId, setHoveredIconId] = useState<string | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [overrides, setOverrides] = useState<Record<string, { name?: string; color?: string }>>({})
 
   const OPEN_WIDTH = 256
@@ -39,6 +36,7 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
         if (lastId) {
           const found = items.find((p) => p.id === lastId)
           if (found) {
+            setSelectedCategoryId(found.id)
             onSelectCategory?.(found)
           }
         }
@@ -84,50 +82,15 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
     }
   }
 
-  async function ensureChildrenLoaded(category: SidebarProject) {
-    try {
-      if (childrenMap[category.id]) return
-      const api = (window as unknown as {
-        api?: { projects: { children: { list: (p: string) => Promise<ChildFolder[]> } } }
-      }).api
-      if (!api) return
-      const items = await api.projects.children.list(category.path)
-      setChildrenMap((prev) => ({ ...prev, [category.id]: items }))
-    } catch (e) {
-      setChildrenMap((prev) => ({ ...prev, [category.id]: [] }))
-    }
-  }
-
-  async function toggleCategory(category: SidebarProject) {
-    const next = !expanded[category.id]
-    setExpanded((prev) => ({ ...prev, [category.id]: next }))
-    if (next) await ensureChildrenLoaded(category)
-  }
+  
 
   function selectCategory(category: SidebarProject) {
     localStorage.setItem('last-category-id', category.id)
+    setSelectedCategoryId(category.id)
     onSelectCategory?.(category)
   }
 
-  async function handleCreateChildFolder(name: string) {
-    if (!activeCategoryId) return
-    const category = projects.find((p) => p.id === activeCategoryId)
-    if (!category) return
-    try {
-      const api = (window as unknown as {
-        api?: { projects: { children: { create: (p: string, n: string) => Promise<ChildFolder> } } }
-      }).api
-      if (!api) return
-      const created = await api.projects.children.create(category.path, name)
-      setChildrenMap((prev) => ({
-        ...prev,
-        [activeCategoryId]: [...(prev[activeCategoryId] || []), created],
-      }))
-    } finally {
-      setIsCreateChildOpen(false)
-      setActiveCategoryId(null)
-    }
-  }
+  
 
   return (
     <motion.aside
@@ -213,23 +176,16 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                     <div className="rounded">
                       <button
                         className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
-                        aria-expanded={!!expanded[p.id]}
                         onClick={() => selectCategory(p)}
                       >
                         <div
                           role="button"
                           className="h-4 w-4 cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleCategory(p)
-                          }}
                           onMouseEnter={() => setHoveredIconId(p.id)}
                           onMouseLeave={() => setHoveredIconId(null)}
                           dangerouslySetInnerHTML={{
                             __html: normalizeSvg(
-                              expanded[p.id]
-                                ? folderOpenIconRaw
-                                : hoveredIconId === p.id
+                              hoveredIconId === p.id || selectedCategoryId === p.id
                                 ? folderOpenIconRaw
                                 : folderIconRaw
                             ),
@@ -246,43 +202,7 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                         </motion.span>
                       </button>
 
-                      <AnimatePresence initial={false} mode="wait">
-                        {expanded[p.id] && (
-                          <motion.div
-                            key={`children-${p.id}`}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2, ease: 'easeOut' }}
-                            className="ml-6 mb-1"
-                          >
-                            <ul className="space-y-1">
-                              {(childrenMap[p.id] || []).map((c) => (
-                                <li key={c.path} className="px-2 py-1 text-sm flex items-center gap-2 rounded hover:bg-gray-100">
-                                  <div
-                                    className="h-4 w-4"
-                                    dangerouslySetInnerHTML={{ __html: normalizeSvg(folderIconRaw) }}
-                                    style={{ color: '#111827', lineHeight: 0 }}
-                                  />
-                                  <span className="block truncate">{c.name}</span>
-                                </li>
-                              ))}
-                              <li>
-                                <button
-                                  className="mt-1 flex w-full items-center gap-2 rounded px-2 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                  onClick={() => {
-                                    setActiveCategoryId(p.id)
-                                    setIsCreateChildOpen(true)
-                                  }}
-                                >
-                                  <img src={folderPlusIcon} alt="" className="h-4 w-4" />
-                                  <span className="whitespace-nowrap">Add folder</span>
-                                </button>
-                              </li>
-                            </ul>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                      
                     </div>
                   </li>
                 ))}
@@ -298,16 +218,7 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
         title="Create New Category"
         placeholder="Category name"
       />
-      <CreateProjectModal
-        isOpen={isCreateChildOpen}
-        onClose={() => {
-          setIsCreateChildOpen(false)
-          setActiveCategoryId(null)
-        }}
-        onCreate={handleCreateChildFolder}
-        title="Create New Folder"
-        placeholder="Folder name"
-      />
+      
     </motion.aside>
   )
 }
