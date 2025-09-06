@@ -192,7 +192,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
 
       <hr className="border-t border-gray-200 my-4" />
 
-      <div className="flex-1 flex items-center justify-center w-full -mt-6">
+      <div className="flex-1 flex items-center justify-center w-full mt-2">
         {hasItems ? (
           <AddedItem projectId={id} />
         ) : (
