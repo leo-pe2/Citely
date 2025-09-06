@@ -13,3 +13,8 @@ input[type="submit"],
 input[type="reset"] {
   cursor: pointer;
 }
+
+/* Heading font */
+.font-heading {
+  font-family: 'Alegreya', serif;
+}

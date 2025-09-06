@@ -7,7 +7,7 @@ type CategoryViewProps = {
 export default function CategoryView({ name }: CategoryViewProps) {
   return (
     <div className="p-4">
-      <h1 className="text-xl font-semibold">{name}</h1>
+      <h1 className="text-[46px] font-regular font-heading">{name}</h1>
     </div>
   )
 }

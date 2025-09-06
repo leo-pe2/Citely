@@ -109,7 +109,7 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
       transition={{ type: 'spring', stiffness: 300, damping: 26, mass: 0.4 }}
       className={`h-full border-r border-gray-200 bg-white flex flex-col`}
     >
-      <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-2`}>
+      <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-2 mt-6.5`}>
         {isOpen ? (
           <div className="flex-1 overflow-hidden">
             <AnimatePresence initial={false} mode="wait">
@@ -151,10 +151,10 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.22, ease: 'easeInOut' }}
-                className="px-2 py-2"
+                className="px-2 py-1.5 mb-0"
               >
                 <button
-                  className="flex w-full items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100"
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
                   onClick={() => setIsCreateOpen(true)}
                 >
                   <img src={folderPlusIcon} alt="" className="h-4 w-4" />
@@ -179,13 +179,13 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.22, ease: 'easeInOut' }}
-                className="space-y-1 px-2"
+                className="space-y-0.5 px-2 -mt-0.5"
               >
                 {projects.map((p) => (
                   <li key={p.id}>
                     <div className="rounded">
                       <button
-                        className="w-full flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-100"
+                        className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
                         aria-expanded={!!expanded[p.id]}
                         onClick={() => selectCategory(p)}
                       >
