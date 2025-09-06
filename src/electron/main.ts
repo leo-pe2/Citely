@@ -111,6 +111,19 @@ async function importPdfIntoProject(projectId: string): Promise<{ imported: { fi
     return { imported: [{ fileName: destName, path: candidate }] };
 }
 
+async function projectHasItems(projectId: string): Promise<{ hasItems: boolean }> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) return { hasItems: false };
+    const entries = await fs.readdir(projectDir, { withFileTypes: true });
+    for (const e of entries) {
+        if (e.isFile() && e.name.toLowerCase().endsWith('.pdf')) {
+            return { hasItems: true };
+        }
+    }
+    return { hasItems: false };
+}
+
 
 app.on('ready', () => {
     // In development, set the app/dock icon from the project root desktopIcon.png
@@ -165,5 +178,8 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:item:import-pdf', async (_event, projectId: string) => {
         return importPdfIntoProject(projectId);
+    });
+    ipcMain.handle('projects:items:exists', async (_event, projectId: string) => {
+        return projectHasItems(projectId);
     });
 });
