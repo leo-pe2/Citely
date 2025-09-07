@@ -1,19 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
-
-// Use a 1x1 transparent canvas on Windows to suppress native ghost reliably
-function createTransparentCanvas(): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = 1
-  canvas.height = 1
-  const ctx = canvas.getContext('2d')
-  if (ctx) {
-    ctx.clearRect(0, 0, 1, 1)
-  }
-  return canvas
-}
-function isWindows(): boolean {
-  return /Windows/i.test(navigator.userAgent)
-}
+import { DndContext, DragOverlay, PointerSensor, closestCenter, useSensor, useSensors, type DragStartEvent, type DragEndEvent, type DragCancelEvent } from '@dnd-kit/core'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 
 type AddedItemProps = {
   projectId: string
@@ -25,16 +13,14 @@ type ItemStatus = 'todo' | 'ongoing' | 'underReview' | 'done'
 export default function AddedItem({ projectId }: AddedItemProps) {
   const [items, setItems] = useState<ProjectItem[]>([])
   const [pathToStatus, setPathToStatus] = useState<Record<string, ItemStatus>>({})
-  const dragVisualRef = useRef<HTMLDivElement | null>(null)
-  const dragOffsetRef = useRef<{ x: number; y: number } | null>(null)
-  const dragSourceRef = useRef<HTMLDivElement | null>(null)
-  const dragShimRef = useRef<HTMLDivElement | null>(null)
-  const todoColRef = useRef<HTMLDivElement | null>(null)
-  const ongoingColRef = useRef<HTMLDivElement | null>(null)
-  const underReviewColRef = useRef<HTMLDivElement | null>(null)
-  const doneColRef = useRef<HTMLDivElement | null>(null)
-  const onWindows = isWindows()
-  const saveDebounceRef = useRef<number | null>(null)
+  const [activePath, setActivePath] = useState<string | null>(null)
+  const [activeSize, setActiveSize] = useState<{ width: number; height: number } | null>(null)
+  const [saveDebounce, setSaveDebounce] = useState<number | null>(null)
+  const nodeRefMap = useRef<Record<string, HTMLElement | null>>({})
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  )
 
   async function fetchItems() {
     try {
@@ -86,14 +72,15 @@ export default function AddedItem({ projectId }: AddedItemProps) {
       api?: { projects: { kanban?: { set?: (projectId: string, statuses: Record<string, string>) => Promise<{ ok: true }> } } }
     }).api
     if (!api?.projects.kanban?.set) return
-    if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current)
-    saveDebounceRef.current = window.setTimeout(() => {
+    if (saveDebounce) window.clearTimeout(saveDebounce)
+    const id = window.setTimeout(() => {
       try {
         api.projects.kanban!.set!(projectId, pathToStatus as unknown as Record<string, string>)
       } catch {}
     }, 300)
+    setSaveDebounce(id)
     return () => {
-      if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current)
+      if (id) window.clearTimeout(id)
     }
   }, [projectId, pathToStatus])
 
@@ -117,15 +104,35 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     return () => window.removeEventListener('project:item:imported', onItemImported)
   }, [projectId])
 
-  function handleDrop(targetStatus: ItemStatus, e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault()
-    const path = e.dataTransfer.getData('text/plain')
-    if (!path) return
-    setPathToStatus((prev) => ({ ...prev, [path]: targetStatus }))
+  function onDragStart(event: DragStartEvent) {
+    const path = String(event.active.id)
+    setActivePath(path)
+    // Measure the dragged element to size the overlay accordingly
+    const el = nodeRefMap.current[path]
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      setActiveSize({ width: rect.width, height: rect.height })
+    } else {
+      setActiveSize(null)
+    }
   }
 
-  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault()
+  function onDragEnd(event: DragEndEvent) {
+    const path = String(event.active.id)
+    const overId = event.over?.id ? String(event.over.id) : null
+    setActivePath(null)
+    setActiveSize(null)
+    if (!overId) return
+    // Droppable ids are the status values
+    const target = overId as ItemStatus
+    if (target === 'todo' || target === 'ongoing' || target === 'underReview' || target === 'done') {
+      setPathToStatus((prev) => ({ ...prev, [path]: target }))
+    }
+  }
+
+  function onDragCancel(_event?: DragCancelEvent) {
+    setActivePath(null)
+    setActiveSize(null)
   }
 
   const todoItems = items.filter((it) => (pathToStatus[it.path] ?? 'todo') === 'todo')
@@ -137,208 +144,111 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     return String(n).padStart(2, '0')
   }
 
-  function renderCard(it: ProjectItem) {
+  function DraggableCard({ it }: { it: ProjectItem }) {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: it.path })
+    const style: React.CSSProperties = {
+      // Hide original element while dragging since we use DragOverlay
+      transform: isDragging ? undefined : (transform ? CSS.Transform.toString(transform) : undefined),
+      opacity: isDragging ? 0 : 1,
+    }
     return (
       <div
-        key={it.path}
+        ref={(el) => {
+          setNodeRef(el)
+          nodeRefMap.current[it.path] = el
+        }}
+        {...attributes}
+        {...listeners}
         className="relative w-full h-[150px] rounded-xl bg-white overflow-hidden cursor-move"
-        style={{ border: '1.5px solid #e6e6e6' }}
-        draggable={!onWindows}
-        onDragStart={!onWindows ? (e) => {
-          e.dataTransfer.setData('text/plain', it.path)
-          e.dataTransfer.effectAllowed = 'move'
-
-          // Keep native ghost on non-Windows
-          try {
-          } catch {}
-
-          // Create a fixed-position visual that follows the cursor
-          const target = e.currentTarget as HTMLDivElement
-          const rect = target.getBoundingClientRect()
-
-          const visual = target.cloneNode(true) as HTMLDivElement
-          visual.style.position = 'fixed'
-          visual.style.top = rect.top + 'px'
-          visual.style.left = rect.left + 'px'
-          visual.style.width = rect.width + 'px'
-          visual.style.height = rect.height + 'px'
-          visual.style.pointerEvents = 'none'
-          visual.style.zIndex = '9999'
-          visual.style.opacity = '1'
-          visual.style.boxShadow = '0 10px 25px rgba(0,0,0,0.25)'
-          visual.style.background = 'white'
-          document.body.appendChild(visual)
-
-          dragVisualRef.current = visual
-          dragSourceRef.current = target
-          // Dim the source slightly to indicate drag without removing it from layout
-          target.style.opacity = '0.2'
-
-          // Track the offset so the cursor stays at the same relative position
-          const offsetX = e.clientX - rect.left
-          const offsetY = e.clientY - rect.top
-          dragOffsetRef.current = { x: offsetX, y: offsetY }
-
-        } : undefined}
-        onDrag={!onWindows ? (e) => {
-          const visual = dragVisualRef.current
-          const offset = dragOffsetRef.current
-          if (!visual || !offset) return
-          if (e.clientX === 0 && e.clientY === 0) return
-          const left = e.clientX - offset.x
-          const top = e.clientY - offset.y
-          visual.style.left = left + 'px'
-          visual.style.top = top + 'px'
-        } : undefined}
-        onDragEnd={!onWindows ? () => {
-          // Cleanup visual and restore source
-          if (dragVisualRef.current && dragVisualRef.current.parentNode) {
-            dragVisualRef.current.parentNode.removeChild(dragVisualRef.current)
-          }
-          dragVisualRef.current = null
-          dragOffsetRef.current = null
-          if (dragSourceRef.current) {
-            dragSourceRef.current.style.opacity = ''
-          }
-          dragSourceRef.current = null
-          if (dragShimRef.current && dragShimRef.current.parentNode) {
-            dragShimRef.current.parentNode.removeChild(dragShimRef.current)
-          }
-          dragShimRef.current = null
-        } : undefined}
-        onPointerDown={onWindows ? (e) => {
-          const target = e.currentTarget as HTMLDivElement
-          const rect = target.getBoundingClientRect()
-          const path = it.path
-          e.preventDefault()
-
-          const placeholder = document.createElement('div')
-          placeholder.style.width = rect.width + 'px'
-          placeholder.style.height = rect.height + 'px'
-          placeholder.style.border = '1.5px solid transparent'
-
-          const parent = target.parentElement
-          if (!parent) return
-          parent.insertBefore(placeholder, target)
-
-          target.style.position = 'fixed'
-          target.style.top = rect.top + 'px'
-          target.style.left = rect.left + 'px'
-          target.style.width = rect.width + 'px'
-          target.style.height = rect.height + 'px'
-          target.style.zIndex = '9999'
-          target.style.pointerEvents = 'none'
-          target.style.boxShadow = '0 10px 25px rgba(0,0,0,0.25)'
-          document.body.appendChild(target)
-
-          const offsetX = e.clientX - rect.left
-          const offsetY = e.clientY - rect.top
-
-          const move = (ev: PointerEvent) => {
-            const left = ev.clientX - offsetX
-            const top = ev.clientY - offsetY
-            target.style.left = left + 'px'
-            target.style.top = top + 'px'
-            ev.preventDefault()
-          }
-          const up = (ev: PointerEvent) => {
-            window.removeEventListener('pointermove', move, true)
-            window.removeEventListener('pointerup', up, true)
-
-            const x = ev.clientX
-            const y = ev.clientY
-            const inRect = (ref: React.RefObject<HTMLDivElement | null>) => {
-              const el = ref.current
-              if (!el) return false
-              const r = el.getBoundingClientRect()
-              return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
-            }
-            let status: ItemStatus | null = null
-            if (inRect(todoColRef)) status = 'todo'
-            else if (inRect(ongoingColRef)) status = 'ongoing'
-            else if (inRect(underReviewColRef)) status = 'underReview'
-            else if (inRect(doneColRef)) status = 'done'
-
-            target.style.position = ''
-            target.style.top = ''
-            target.style.left = ''
-            target.style.width = ''
-            target.style.height = ''
-            target.style.zIndex = ''
-            target.style.pointerEvents = ''
-            target.style.boxShadow = ''
-            parent.insertBefore(target, placeholder)
-            placeholder.remove()
-
-            if (status) {
-              setPathToStatus((prev) => ({ ...prev, [path]: status! }))
-            }
-          }
-          window.addEventListener('pointermove', move, true)
-          window.addEventListener('pointerup', up, true)
-        } : undefined}
+        style={{ border: '1.5px solid #e6e6e6', ...style }}
       >
         <div className="absolute left-3 bottom-2 right-3 text-sm text-gray-800 truncate">{it.fileName}</div>
       </div>
     )
   }
 
+  function DroppableColumn({ id, children }: { id: ItemStatus; children: React.ReactNode }) {
+    const { setNodeRef, isOver } = useDroppable({ id })
+    return (
+      <div
+        ref={setNodeRef}
+        className={`min-h-[220px] flex flex-col gap-3 ${isOver ? 'bg-gray-50' : ''}`}
+      >
+        {children}
+      </div>
+    )
+  }
+
   return (
     <div className="w-full h-full overflow-auto">
-      <div className="grid grid-cols-4 gap-6 items-start">
-        <div className="flex flex-col">
-          <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-            To Do ({formatCount(todoItems.length)})
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
+      >
+        <div className="grid grid-cols-4 gap-6 items-start">
+          <div className="flex flex-col">
+            <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
+              To Do ({formatCount(todoItems.length)})
+            </div>
+            <DroppableColumn id="todo">
+              {todoItems.map((it) => (
+                <DraggableCard key={it.path} it={it} />
+              ))}
+            </DroppableColumn>
           </div>
-          <div
-            className="min-h-[220px] flex flex-col gap-3"
-            ref={todoColRef}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop('todo', e)}
-          >
-            {todoItems.map(renderCard)}
+          <div className="flex flex-col">
+            <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
+              Ongoing ({formatCount(ongoingItems.length)})
+            </div>
+            <DroppableColumn id="ongoing">
+              {ongoingItems.map((it) => (
+                <DraggableCard key={it.path} it={it} />
+              ))}
+            </DroppableColumn>
           </div>
-        </div>
-        <div className="flex flex-col">
-          <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-            Ongoing ({formatCount(ongoingItems.length)})
+          <div className="flex flex-col">
+            <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
+              Under Review ({formatCount(underReviewItems.length)})
+            </div>
+            <DroppableColumn id="underReview">
+              {underReviewItems.map((it) => (
+                <DraggableCard key={it.path} it={it} />
+              ))}
+            </DroppableColumn>
           </div>
-          <div
-            className="min-h-[220px] flex flex-col gap-3"
-            ref={ongoingColRef}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop('ongoing', e)}
-          >
-            {ongoingItems.map(renderCard)}
-          </div>
-        </div>
-        <div className="flex flex-col">
-          <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-            Under Review ({formatCount(underReviewItems.length)})
-          </div>
-          <div
-            className="min-h-[220px] flex flex-col gap-3"
-            ref={underReviewColRef}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop('underReview', e)}
-          >
-            {underReviewItems.map(renderCard)}
-          </div>
-        </div>
-        <div className="flex flex-col">
-          <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-            Done ({formatCount(doneItems.length)})
-          </div>
-          <div
-            className="min-h-[220px] flex flex-col gap-3"
-            ref={doneColRef}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop('done', e)}
-          >
-            {doneItems.map(renderCard)}
+          <div className="flex flex-col">
+            <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
+              Done ({formatCount(doneItems.length)})
+            </div>
+            <DroppableColumn id="done">
+              {doneItems.map((it) => (
+                <DraggableCard key={it.path} it={it} />
+              ))}
+            </DroppableColumn>
           </div>
         </div>
-      </div>
+
+        <DragOverlay>
+          {activePath ? (
+            <div
+              className="relative rounded-xl bg-white overflow-hidden"
+              style={{
+                border: '1.5px solid #e6e6e6',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.25)',
+                width: activeSize?.width,
+                height: activeSize?.height,
+              }}
+            >
+              <div className="absolute left-3 bottom-2 right-3 text-sm text-gray-800 truncate">
+                {items.find((it) => it.path === activePath)?.fileName || ''}
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   )
 }
