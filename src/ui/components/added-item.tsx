@@ -190,44 +190,52 @@ export default function AddedItem({ projectId }: AddedItemProps) {
       >
         <div className="grid grid-cols-4 gap-6 items-start">
           <div className="flex flex-col">
-            <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-              To Do ({formatCount(todoItems.length)})
+            <div className="w-full bg-gray-100/60 rounded-xl p-3">
+              <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
+                To Do ({formatCount(todoItems.length)})
+              </div>
+              <DroppableColumn id="todo">
+                {todoItems.map((it) => (
+                  <DraggableCard key={it.path} it={it} />
+                ))}
+              </DroppableColumn>
             </div>
-            <DroppableColumn id="todo">
-              {todoItems.map((it) => (
-                <DraggableCard key={it.path} it={it} />
-              ))}
-            </DroppableColumn>
           </div>
           <div className="flex flex-col">
-            <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-              Ongoing ({formatCount(ongoingItems.length)})
+            <div className="w-full bg-gray-100/60 rounded-xl p-3">
+              <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
+                Ongoing ({formatCount(ongoingItems.length)})
+              </div>
+              <DroppableColumn id="ongoing">
+                {ongoingItems.map((it) => (
+                  <DraggableCard key={it.path} it={it} />
+                ))}
+              </DroppableColumn>
             </div>
-            <DroppableColumn id="ongoing">
-              {ongoingItems.map((it) => (
-                <DraggableCard key={it.path} it={it} />
-              ))}
-            </DroppableColumn>
           </div>
           <div className="flex flex-col">
-            <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-              Under Review ({formatCount(underReviewItems.length)})
+            <div className="w-full bg-gray-100/60 rounded-xl p-3">
+              <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
+                Under Review ({formatCount(underReviewItems.length)})
+              </div>
+              <DroppableColumn id="underReview">
+                {underReviewItems.map((it) => (
+                  <DraggableCard key={it.path} it={it} />
+                ))}
+              </DroppableColumn>
             </div>
-            <DroppableColumn id="underReview">
-              {underReviewItems.map((it) => (
-                <DraggableCard key={it.path} it={it} />
-              ))}
-            </DroppableColumn>
           </div>
           <div className="flex flex-col">
-            <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-              Done ({formatCount(doneItems.length)})
+            <div className="w-full bg-gray-100/60 rounded-xl p-3">
+              <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
+                Done ({formatCount(doneItems.length)})
+              </div>
+              <DroppableColumn id="done">
+                {doneItems.map((it) => (
+                  <DraggableCard key={it.path} it={it} />
+                ))}
+              </DroppableColumn>
             </div>
-            <DroppableColumn id="done">
-              {doneItems.map((it) => (
-                <DraggableCard key={it.path} it={it} />
-              ))}
-            </DroppableColumn>
           </div>
         </div>
 
