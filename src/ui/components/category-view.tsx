@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AddedItem from './added-item'
 import penIcon from '../assets/pen.svg'
+import plusIcon from '../assets/plus.svg'
+import Notes from './notes'
 
 type CategoryViewProps = {
   id: string
@@ -26,9 +28,11 @@ function writeOverrides(next: ProjectOverrides) {
 export default function CategoryView({ id, name }: CategoryViewProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const [selectedColor, setSelectedColor] = useState<string>(() => readOverrides()[id]?.color ?? '#000000')
   const [description, setDescription] = useState<string>(() => readOverrides()[id]?.description ?? '')
   const [hasItems, setHasItems] = useState<boolean>(false)
+  const [activePage, setActivePage] = useState<'kanban' | 'notes'>('kanban')
 
   const initialName = useMemo(() => {
     const o = readOverrides()
@@ -45,7 +49,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
     function onDocClick(e: MouseEvent) {
       if (!menuOpen) return
       const t = e.target as Node
-      if (containerRef.current && !containerRef.current.contains(t)) {
+      if (menuRef.current && !menuRef.current.contains(t)) {
         setMenuOpen(false)
       }
     }
@@ -136,48 +140,73 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
 
   return (
     <div className="p-4 h-full flex flex-col" ref={containerRef}>
-      <div className="flex items-center gap-2">
-        <h1 className="text-[46px] font-regular font-heading">{displayName}</h1>
-        <div className="relative ml-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-[46px] leading-none font-regular font-heading">{displayName}</h1>
+          <nav className="flex items-center gap-3 text-[14px] leading-none text-gray-600 self-center mt-[4px]">
+            <button
+              className={`${activePage === 'kanban' ? 'text-black' : 'hover:text-black'}`}
+              onClick={() => setActivePage('kanban')}
+            >
+              Kanban
+            </button>
+            <button
+              className={`${activePage === 'notes' ? 'text-black' : 'hover:text-black'}`}
+              onClick={() => setActivePage('notes')}
+            >
+              Notes
+            </button>
+          </nav>
+        </div>
+        <div className="flex items-center gap-3">
           <button
             className="w-8 h-8 rounded-full border-2 border-gray-300 hover:border-black flex items-center justify-center"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Edit category"
+            onClick={handleAddItem}
+            aria-label="Add item"
           >
-            <img src={penIcon} alt="" className="w-4 h-4" />
+            <img src={plusIcon} alt="" className="w-4 h-4" />
           </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              className="w-8 h-8 rounded-full border-2 border-gray-300 hover:border-black flex items-center justify-center"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Edit category"
+            >
+              <img src={penIcon} alt="" className="w-4 h-4" />
+            </button>
 
-          {menuOpen ? (
-            <div className="absolute left-full ml-2 top-0 bg-white border border-gray-200 rounded shadow-md w-[300px] p-3 z-10">
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Project name</label>
-                  <input
-                    className="w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-black"
-                    value={displayName}
-                    onChange={(e) => updateName(e.target.value)}
-                    placeholder="Enter name"
-                  />
-                </div>
-                <div>
-                  <div className="block text-xs text-gray-500 mb-1">Folder color</div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {colors.map((c) => (
-                      <button
-                        key={c}
-                        className={`w-6 h-6 rounded-full border ${
-                          selectedColor === c ? 'border-gray-300 ring-2 ring-gray-300' : 'border-gray-300 hover:border-black'
-                        }`}
-                        style={{ backgroundColor: c }}
-                        onClick={() => updateColor(c)}
-                        aria-label={`Set color ${c}`}
-                      />
-                    ))}
+            {menuOpen ? (
+              <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded shadow-md w-[300px] p-3 z-10">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Project name</label>
+                    <input
+                      className="w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-black"
+                      value={displayName}
+                      onChange={(e) => updateName(e.target.value)}
+                      placeholder="Enter name"
+                    />
+                  </div>
+                  <div>
+                    <div className="block text-xs text-gray-500 mb-1">Folder color</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {colors.map((c) => (
+                        <button
+                          key={c}
+                          className={`w-6 h-6 rounded-full border ${
+                            selectedColor === c ? 'border-gray-300 ring-2 ring-gray-300' : 'border-gray-300 hover:border-black'
+                          }`}
+                          style={{ backgroundColor: c }}
+                          onClick={() => updateColor(c)}
+                          aria-label={`Set color ${c}`}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="mt-2">
@@ -193,25 +222,29 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
       <hr className="border-t border-gray-200 my-4" />
 
       <div className="flex-1 flex items-center justify-center w-full mt-2">
-        {hasItems ? (
-          <AddedItem projectId={id} />
-        ) : (
-          <div className="flex flex-col items-center text-center text-gray-600 mx-auto w-full">
-            <p className="text-lg">
-              This category is empty, start
-              <br />
-              by importing an item.
-            </p>
-            <div className="my-6 h-24 w-px bg-gray-300 mx-auto" />
-            <div className="flex flex-col items-center gap-3">
-              <button className="rounded-full bg-gray-200 px-4 py-2 text-base text-gray-700" onClick={handleAddItem}>
-                + Add Item
-              </button>
-              <button className="rounded-full bg-gray-200 px-4 py-2 text-base text-gray-700" onClick={handleDeleteCategory}>
-                × Delete
-              </button>
+        {activePage === 'kanban' ? (
+          hasItems ? (
+            <AddedItem projectId={id} />
+          ) : (
+            <div className="flex flex-col items-center text-center text-gray-600 mx-auto w-full">
+              <p className="text-lg">
+                This category is empty, start
+                <br />
+                by importing an item.
+              </p>
+              <div className="my-6 h-24 w-px bg-gray-300 mx-auto" />
+              <div className="flex flex-col items-center gap-3">
+                <button className="rounded-full bg-gray-200 px-4 py-2 text-base text-gray-700" onClick={handleAddItem}>
+                  + Add Item
+                </button>
+                <button className="rounded-full bg-gray-200 px-4 py-2 text-base text-gray-700" onClick={handleDeleteCategory}>
+                  × Delete
+                </button>
+              </div>
             </div>
-          </div>
+          )
+        ) : (
+          <Notes />
         )}
       </div>
     </div>
