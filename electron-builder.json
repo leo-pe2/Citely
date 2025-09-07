@@ -11,15 +11,17 @@
     ],
     "icon": "./desktopIcon.png",
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "./desktopIcon.icns"
     },
     "linux": {
       "target": "AppImage",
-      "category": "Utility"
+      "category": "Utility",
+      "icon": "./desktopIcon.png"
     },
     "win": {
       "target": ["portable", "msi"],
-      "icon": "./desktopIcon.png"
+      "icon": "./desktopIcon.ico"
     },
     "npmRebuild": false,
     "buildDependenciesFromSource": false
