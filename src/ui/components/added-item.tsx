@@ -237,7 +237,6 @@ export default function AddedItem({ projectId }: AddedItemProps) {
               className="relative rounded-xl bg-white overflow-hidden"
               style={{
                 border: '1.5px solid #e6e6e6',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.25)',
                 width: activeSize?.width,
                 height: activeSize?.height,
               }}
