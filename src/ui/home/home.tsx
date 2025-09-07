@@ -17,7 +17,7 @@ function Home() {
   }, [selected])
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden">
+    <div className="min-h-screen w-screen flex overflow-x-hidden">
       <Sidebar onSelectCategory={(c) => setSelected(c)} />
       <main className="flex-1 min-w-0 w-full">
         {selected ? <CategoryView id={selected.id} name={selected.name} /> : null}

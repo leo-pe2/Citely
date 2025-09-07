@@ -139,7 +139,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
   }, [id])
 
   return (
-    <div className="p-4 h-full flex flex-col" ref={containerRef}>
+    <div className="pt-4 pr-4 pb-4 pl-6 flex flex-col" ref={containerRef}>
       <div className="flex items-center justify-between">
         <div className="flex items-baseline gap-3">
           <h1 className="text-[46px] leading-none font-regular font-heading">{displayName}</h1>

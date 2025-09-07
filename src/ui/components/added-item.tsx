@@ -170,12 +170,13 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     )
   }
 
-  function DroppableColumn({ id, children }: { id: ItemStatus; children: React.ReactNode }) {
+  function DroppableColumn({ id, children, itemCount }: { id: ItemStatus; children: React.ReactNode; itemCount: number }) {
     const { setNodeRef, isOver } = useDroppable({ id })
     return (
       <div
         ref={setNodeRef}
-        className={`min-h-[220px] flex flex-col gap-3 transition-colors duration-150`}
+        className={`flex flex-col gap-3 transition-colors duration-150`}
+        style={{ minHeight: itemCount <= 1 ? 150 : 220 }}
       >
         {children}
       </div>
@@ -183,7 +184,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   }
 
   return (
-    <div className="w-full h-full overflow-auto">
+    <div className="w-full">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -204,11 +205,12 @@ export default function AddedItem({ projectId }: AddedItemProps) {
             <div className="w-full bg-gray-100/60 rounded-xl p-3">
               <div className="mb-3 flex items-center gap-2">
                 <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-gray-200/60">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full mr-2" style={{ backgroundColor: '#9ca3af' }} />
                   To Do
                 </div>
                 <span className="text-sm text-gray-600">{formatCount(todoItems.length)}</span>
               </div>
-              <DroppableColumn id="todo">
+              <DroppableColumn id="todo" itemCount={todoItems.length}>
                 {todoItems.map((it) => (
                   <DraggableCard key={it.path} it={it} bgClass="bg-gray-200/60" />
                 ))}
@@ -219,11 +221,12 @@ export default function AddedItem({ projectId }: AddedItemProps) {
             <div className="w-full bg-[#fcbf49]/30 rounded-xl p-3">
               <div className="mb-3 flex items-center gap-2">
                 <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#fcbf49]/60">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full mr-2" style={{ backgroundColor: '#fcbf49' }} />
                   Ongoing
                 </div>
                 <span className="text-sm text-gray-600">{formatCount(ongoingItems.length)}</span>
               </div>
-              <DroppableColumn id="ongoing">
+              <DroppableColumn id="ongoing" itemCount={ongoingItems.length}>
                 {ongoingItems.map((it) => (
                   <DraggableCard key={it.path} it={it} bgClass="bg-[#fcbf49]/60" />
                 ))}
@@ -234,11 +237,12 @@ export default function AddedItem({ projectId }: AddedItemProps) {
             <div className="w-full bg-[#f77f00]/30 rounded-xl p-3">
               <div className="mb-3 flex items-center gap-2">
                 <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#f77f00]/45">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full mr-2" style={{ backgroundColor: '#f77f00' }} />
                   Under Review
                 </div>
                 <span className="text-sm text-gray-600">{formatCount(underReviewItems.length)}</span>
               </div>
-              <DroppableColumn id="underReview">
+              <DroppableColumn id="underReview" itemCount={underReviewItems.length}>
                 {underReviewItems.map((it) => (
                   <DraggableCard key={it.path} it={it} bgClass="bg-[#f77f00]/45" />
                 ))}
@@ -249,11 +253,12 @@ export default function AddedItem({ projectId }: AddedItemProps) {
             <div className="w-full bg-[#4c956c]/30 rounded-xl p-3">
               <div className="mb-3 flex items-center gap-2">
                 <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#4c956c]/45">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full mr-2" style={{ backgroundColor: '#4c956c' }} />
                   Done
                 </div>
                 <span className="text-sm text-gray-600">{formatCount(doneItems.length)}</span>
               </div>
-              <DroppableColumn id="done">
+              <DroppableColumn id="done" itemCount={doneItems.length}>
                 {doneItems.map((it) => (
                   <DraggableCard key={it.path} it={it} bgClass="bg-[#4c956c]/45" />
                 ))}
