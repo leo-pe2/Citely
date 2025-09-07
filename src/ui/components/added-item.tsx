@@ -34,6 +34,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   const underReviewColRef = useRef<HTMLDivElement | null>(null)
   const doneColRef = useRef<HTMLDivElement | null>(null)
   const onWindows = isWindows()
+  const saveDebounceRef = useRef<number | null>(null)
 
   async function fetchItems() {
     try {
@@ -59,6 +60,42 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   useEffect(() => {
     fetchItems()
   }, [projectId])
+
+  // Load persisted kanban statuses
+  useEffect(() => {
+    let mounted = true
+    async function loadStatuses() {
+      try {
+        const api = (window as unknown as {
+          api?: { projects: { kanban?: { get?: (projectId: string) => Promise<Record<string, string>> } } }
+        }).api
+        const saved = await api?.projects.kanban?.get?.(projectId)
+        if (!mounted || !saved) return
+        setPathToStatus((prev) => ({ ...prev, ...(saved as Record<string, ItemStatus>) }))
+      } catch {}
+    }
+    loadStatuses()
+    return () => {
+      mounted = false
+    }
+  }, [projectId])
+
+  // Persist statuses with debounce
+  useEffect(() => {
+    const api = (window as unknown as {
+      api?: { projects: { kanban?: { set?: (projectId: string, statuses: Record<string, string>) => Promise<{ ok: true }> } } }
+    }).api
+    if (!api?.projects.kanban?.set) return
+    if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current)
+    saveDebounceRef.current = window.setTimeout(() => {
+      try {
+        api.projects.kanban!.set!(projectId, pathToStatus as unknown as Record<string, string>)
+      } catch {}
+    }, 300)
+    return () => {
+      if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current)
+    }
+  }, [projectId, pathToStatus])
 
   useEffect(() => {
     function onItemImported(e: Event) {
