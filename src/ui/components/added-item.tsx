@@ -15,6 +15,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   const [pathToStatus, setPathToStatus] = useState<Record<string, ItemStatus>>({})
   const [activePath, setActivePath] = useState<string | null>(null)
   const [activeSize, setActiveSize] = useState<{ width: number; height: number } | null>(null)
+  const [overStatus, setOverStatus] = useState<ItemStatus | null>(null)
   const [saveDebounce, setSaveDebounce] = useState<number | null>(null)
   const nodeRefMap = useRef<Record<string, HTMLElement | null>>({})
 
@@ -122,6 +123,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     const overId = event.over?.id ? String(event.over.id) : null
     setActivePath(null)
     setActiveSize(null)
+    setOverStatus(null)
     if (!overId) return
     // Droppable ids are the status values
     const target = overId as ItemStatus
@@ -133,6 +135,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   function onDragCancel(_event?: DragCancelEvent) {
     setActivePath(null)
     setActiveSize(null)
+    setOverStatus(null)
   }
 
   const todoItems = items.filter((it) => (pathToStatus[it.path] ?? 'todo') === 'todo')
@@ -141,10 +144,10 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   const doneItems = items.filter((it) => pathToStatus[it.path] === 'done')
 
   function formatCount(n: number): string {
-    return String(n).padStart(2, '0')
+    return String(n)
   }
 
-  function DraggableCard({ it }: { it: ProjectItem }) {
+  function DraggableCard({ it, bgClass }: { it: ProjectItem; bgClass: string }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: it.path })
     const style: React.CSSProperties = {
       // Hide original element while dragging since we use DragOverlay
@@ -159,8 +162,8 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         }}
         {...attributes}
         {...listeners}
-        className="relative w-full h-[150px] rounded-xl bg-white overflow-hidden cursor-move"
-        style={{ border: '1.5px solid #e6e6e6', ...style }}
+        className={`relative w-full h-[150px] rounded-xl overflow-hidden cursor-move ${bgClass} transition-colors duration-200 ease-out`}
+        style={{ ...style }}
       >
         <div className="absolute left-3 bottom-2 right-3 text-sm text-gray-800 truncate">{it.fileName}</div>
       </div>
@@ -172,7 +175,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     return (
       <div
         ref={setNodeRef}
-        className={`min-h-[220px] flex flex-col gap-3 ${isOver ? 'bg-gray-50' : ''}`}
+        className={`min-h-[220px] flex flex-col gap-3 transition-colors duration-150`}
       >
         {children}
       </div>
@@ -185,54 +188,74 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={onDragStart}
+        onDragOver={(event) => {
+          const id = event.over?.id ? String(event.over.id) : null
+          if (id === 'todo' || id === 'ongoing' || id === 'underReview' || id === 'done') {
+            setOverStatus(id)
+          } else {
+            setOverStatus(null)
+          }
+        }}
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
         <div className="grid grid-cols-4 gap-6 items-start">
           <div className="flex flex-col">
             <div className="w-full bg-gray-100/60 rounded-xl p-3">
-              <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-                To Do ({formatCount(todoItems.length)})
+              <div className="mb-3 flex items-center gap-2">
+                <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-gray-200/60">
+                  To Do
+                </div>
+                <span className="text-sm text-gray-600">{formatCount(todoItems.length)}</span>
               </div>
               <DroppableColumn id="todo">
                 {todoItems.map((it) => (
-                  <DraggableCard key={it.path} it={it} />
+                  <DraggableCard key={it.path} it={it} bgClass="bg-gray-200/60" />
                 ))}
               </DroppableColumn>
             </div>
           </div>
           <div className="flex flex-col">
-            <div className="w-full bg-gray-100/60 rounded-xl p-3">
-              <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-                Ongoing ({formatCount(ongoingItems.length)})
+            <div className="w-full bg-[#fcbf49]/30 rounded-xl p-3">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#fcbf49]/60">
+                  Ongoing
+                </div>
+                <span className="text-sm text-gray-600">{formatCount(ongoingItems.length)}</span>
               </div>
               <DroppableColumn id="ongoing">
                 {ongoingItems.map((it) => (
-                  <DraggableCard key={it.path} it={it} />
+                  <DraggableCard key={it.path} it={it} bgClass="bg-[#fcbf49]/60" />
                 ))}
               </DroppableColumn>
             </div>
           </div>
           <div className="flex flex-col">
-            <div className="w-full bg-gray-100/60 rounded-xl p-3">
-              <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-                Under Review ({formatCount(underReviewItems.length)})
+            <div className="w-full bg-[#f77f00]/30 rounded-xl p-3">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#f77f00]/45">
+                  Under Review
+                </div>
+                <span className="text-sm text-gray-600">{formatCount(underReviewItems.length)}</span>
               </div>
               <DroppableColumn id="underReview">
                 {underReviewItems.map((it) => (
-                  <DraggableCard key={it.path} it={it} />
+                  <DraggableCard key={it.path} it={it} bgClass="bg-[#f77f00]/45" />
                 ))}
               </DroppableColumn>
             </div>
           </div>
           <div className="flex flex-col">
-            <div className="w-full bg-gray-100/60 rounded-xl p-3">
-              <div className="w-full flex items-center text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-3 py-2 mb-3" style={{ background: '#f7f8fa' }}>
-                Done ({formatCount(doneItems.length)})
+            <div className="w-full bg-[#4c956c]/30 rounded-xl p-3">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#4c956c]/45">
+                  Done
+                </div>
+                <span className="text-sm text-gray-600">{formatCount(doneItems.length)}</span>
               </div>
               <DroppableColumn id="done">
                 {doneItems.map((it) => (
-                  <DraggableCard key={it.path} it={it} />
+                  <DraggableCard key={it.path} it={it} bgClass="bg-[#4c956c]/45" />
                 ))}
               </DroppableColumn>
             </div>
@@ -242,11 +265,17 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         <DragOverlay>
           {activePath ? (
             <div
-              className="relative rounded-xl bg-white overflow-hidden"
+              className="relative rounded-xl overflow-hidden transition-colors duration-200 ease-out"
               style={{
-                border: '1.5px solid #e6e6e6',
                 width: activeSize?.width,
                 height: activeSize?.height,
+                background: (() => {
+                  const status = overStatus ?? (pathToStatus[activePath] ?? 'todo')
+                  if (status === 'ongoing') return '#fcbf49' + '99' // ~60%
+                  if (status === 'underReview') return '#f77f00' + '73' // ~45%
+                  if (status === 'done') return '#4c956c' + '73' // ~45%
+                  return 'rgba(229, 231, 235, 0.6)'
+                })(),
               }}
             >
               <div className="absolute left-3 bottom-2 right-3 text-sm text-gray-800 truncate">
