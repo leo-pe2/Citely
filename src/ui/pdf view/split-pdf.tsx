@@ -24,6 +24,8 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const hasLoadedHighlightsRef = React.useRef<boolean>(false)
   const saveDebounceRef = React.useRef<number | null>(null)
   const lastSavedSnapshotRef = React.useRef<string>("[]")
+  const isHighlighterReadyRef = React.useRef<boolean>(false)
+  const pendingJumpRef = React.useRef<{ id: string; page?: number } | null>(null)
   function getPageNumberFromHighlight(h: any): number | undefined {
     if (!h || !h.position) return undefined
     if (typeof h.position.pageNumber === 'number') return h.position.pageNumber
@@ -34,7 +36,20 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return undefined
   }
 
+  function getPdfJsContainer(): HTMLElement | null {
+    const host = viewerRef.current
+    if (!host) return null
+    const pdfViewer = host.querySelector('.pdfViewer') as HTMLElement | null
+    const container = pdfViewer?.parentElement as HTMLElement | null
+    if (!container) return null
+    return container
+  }
+
   function getScrollableAncestor(element: HTMLElement | null): HTMLElement | null {
+    const pdfContainer = getPdfJsContainer()
+    if (element && pdfContainer && pdfContainer.contains(element)) {
+      return pdfContainer
+    }
     let el: HTMLElement | null = element?.parentElement || null
     try {
       while (el && el !== document.body) {
@@ -47,7 +62,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       }
     } catch {}
     const docEl = document.scrollingElement as HTMLElement | null
-    return docEl || null
+    return docEl || pdfContainer || null
   }
 
   function generateId(): string {
@@ -58,23 +73,30 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     const api = (window as any).api
     if (!api?.projects?.highlights?.set) return
     try {
+      console.log('[PDF] saveHighlightsNow count=', nextHighlights.length)
       api.projects.highlights.set(projectId, fileName, nextHighlights)
       lastSavedSnapshotRef.current = JSON.stringify(nextHighlights)
-    } catch {}
+    } catch (e) {
+      console.warn('[PDF] saveHighlightsNow failed', e)
+    }
   }
   const blobUrl = React.useMemo(() => {
     if (!pdfData) return null
     try {
-      return URL.createObjectURL(new Blob([pdfData], { type: 'application/pdf' }))
-    } catch {
+      const url = URL.createObjectURL(new Blob([pdfData], { type: 'application/pdf' }))
+      console.log('[PDF] blobUrl created')
+      return url
+    } catch (e) {
+      console.warn('[PDF] blobUrl creation failed', e)
       return null
     }
   }, [pdfData])
   React.useEffect(() => {
-    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl) }
+    return () => { if (blobUrl) { URL.revokeObjectURL(blobUrl); console.log('[PDF] blobUrl revoked') } }
   }, [blobUrl])
 
   React.useEffect(() => {
+    console.log('[PDF] reading file (base64) path=', path)
     let revoked = false
     let cancelled = false
     ;(async () => {
@@ -89,6 +111,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         if (cancelled) return
         setPdfData(binary)
         setLoadError(null)
+        console.log('[PDF] file read -> pdfData set, bytes=', binary.byteLength)
       } catch (e) {
         console.error('Failed to read PDF', e)
         setLoadError(e instanceof Error ? e.message : 'Unknown error')
@@ -97,12 +120,42 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return () => {
       revoked = true
       cancelled = true
+      console.log('[PDF] read effect cleanup')
     }
   }, [path])
 
+  // Attach debug listeners to the internal pdf.js viewer container
+  React.useEffect(() => {
+    let removed = false
+    function attach() {
+      const container = getPdfJsContainer()
+      if (!container) {
+        if (!removed) setTimeout(attach, 100)
+        return
+      }
+      const onScroll = () => {
+        try { console.log('[PDF] pdf.js container scrollTop=', container.scrollTop, 'scrollHeight=', container.scrollHeight, 'clientHeight=', container.clientHeight) } catch {}
+      }
+      const onClick = (e: Event) => {
+        try { console.log('[PDF] pdf.js container click target=', (e.target as HTMLElement)?.className || (e.target as HTMLElement)?.nodeName) } catch {}
+      }
+      container.addEventListener('scroll', onScroll, { passive: true })
+      container.addEventListener('click', onClick)
+      console.log('[PDF] pdf.js container listeners attached')
+      return () => {
+        removed = true
+        container.removeEventListener('scroll', onScroll as any)
+        container.removeEventListener('click', onClick as any)
+        console.log('[PDF] pdf.js container listeners detached')
+      }
+    }
+    const cleanup = attach()
+    return () => { if (typeof cleanup === 'function') cleanup() }
+  }, [])
+
   // Rely on PdfLoader for document loading; keep local counters unused for now
 
-  // Measure available width to fit pages nicely
+  // Measure available width to fit pages nicely (outer wrapper)
   React.useEffect(() => {
     const el = viewerRef.current
     if (!el) return
@@ -113,6 +166,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         resizeRaf.current = requestAnimationFrame(() => {
           setViewerWidth(Math.floor(rect.width))
           setViewerHeight(Math.floor(rect.height))
+          console.log('[PDF] ResizeObserver size=', Math.floor(rect.width), Math.floor(rect.height))
         })
       }
     })
@@ -120,6 +174,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     const rect = el.getBoundingClientRect()
     setViewerWidth(Math.floor(rect.width))
     setViewerHeight(Math.floor(rect.height))
+    console.log('[PDF] initial viewer size=', Math.floor(rect.width), Math.floor(rect.height))
     return () => {
       ro.disconnect()
       if (resizeRaf.current != null) cancelAnimationFrame(resizeRaf.current)
@@ -129,20 +184,24 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   // Load persisted highlights for this project/file
   React.useEffect(() => {
     let mounted = true
+    console.log('[PDF] loading saved highlights', { projectId, fileName })
     ;(async () => {
       try {
         const api = (window as any).api
         const saved: any[] | undefined = await api?.projects?.highlights?.get?.(projectId, fileName)
         if (!mounted) return
         if (Array.isArray(saved)) {
+          console.log('[PDF] loaded highlights count=', saved.length)
           setRphHighlights(saved)
           lastSavedSnapshotRef.current = JSON.stringify(saved)
         } else {
+          console.log('[PDF] no saved highlights')
           setRphHighlights([])
           lastSavedSnapshotRef.current = "[]"
         }
         hasLoadedHighlightsRef.current = true
-      } catch {
+      } catch (e) {
+        console.warn('[PDF] load highlights failed', e)
         setRphHighlights([])
         lastSavedSnapshotRef.current = "[]"
         hasLoadedHighlightsRef.current = true
@@ -150,6 +209,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     })()
     return () => {
       mounted = false
+      console.log('[PDF] load highlights effect cleanup')
     }
   }, [projectId, fileName])
 
@@ -161,9 +221,12 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     if (saveDebounceRef.current) window.clearTimeout(saveDebounceRef.current)
     const id = window.setTimeout(() => {
       try {
+        console.log('[PDF] debounce-save highlights count=', rphHighlights.length)
         api.projects.highlights.set(projectId, fileName, rphHighlights)
         lastSavedSnapshotRef.current = JSON.stringify(rphHighlights)
-      } catch {}
+      } catch (e) {
+        console.warn('[PDF] debounce-save failed', e)
+      }
     }, 300)
     saveDebounceRef.current = id
     return () => {
@@ -176,7 +239,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     if (!hasLoadedHighlightsRef.current) return
     // Next frame dispatch a resize event which PdfHighlighter listens to for recalculating positions
     const id = window.setTimeout(() => {
-      try { window.dispatchEvent(new Event('resize')) } catch {}
+      try { window.dispatchEvent(new Event('resize')); console.log('[PDF] dispatched resize after highlights change') } catch {}
     }, 0)
     return () => { if (id) window.clearTimeout(id) }
   }, [rphHighlights])
@@ -187,11 +250,104 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       if (!hasLoadedHighlightsRef.current) return
       const snapshot = JSON.stringify(rphHighlights)
       if (snapshot !== lastSavedSnapshotRef.current) {
-        try { saveHighlightsNow(rphHighlights) } catch {}
+        try { console.log('[PDF] unmount flush save'); saveHighlightsNow(rphHighlights) } catch {}
       }
     }
   }, [projectId, fileName, rphHighlights])
   
+  // Helper: find pdf.js page element and scroll viewer (pdf.js container) to it
+  function scrollViewerToPage(pageNum: number): boolean {
+    try {
+      const pdfContainer = getPdfJsContainer()
+      if (!pdfContainer) return false
+      const pageEl = pdfContainer.querySelector(`.page[data-page-number="${pageNum}"]`) as HTMLElement | null
+      if (!pageEl) {
+        console.warn('[PDF] scrollViewerToPage: page element not found yet for', pageNum)
+        return false
+      }
+      const cRect = pdfContainer.getBoundingClientRect()
+      const pRect = pageEl.getBoundingClientRect()
+      const nextTop = pdfContainer.scrollTop + (pRect.top - cRect.top) - 16
+      console.log('[PDF] scrollViewerToPage', { pageNum, from: pdfContainer.scrollTop, to: nextTop })
+      pdfContainer.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
+      return true
+    } catch (e) {
+      console.warn('[PDF] scrollViewerToPage error', e)
+      return false
+    }
+  }
+
+  // Helper: try to locate a rendered highlight element
+  function findHighlightElement(id: string): HTMLElement | null {
+    const pdfContainer = getPdfJsContainer()
+    const root: ParentNode = pdfContainer || viewerRef.current || document
+    const el = root.querySelector(`[data-hl-id="${id}"]`) as HTMLElement | null
+    const inner = el ? (el.querySelector('.Highlight__part') as HTMLElement | null) : null
+    return inner || el
+  }
+
+  // Try scrolling to a highlight id with retries (to wait for render)
+  function scrollToHighlightWithRetries(id: string, pageNum?: number) {
+    let attempts = 0
+    const maxAttempts = 12
+    const delay = 150
+    const tryOnce = () => {
+      attempts += 1
+      const el = findHighlightElement(id)
+      if (el) {
+        const scroller = getScrollableAncestor(el)
+        if (scroller) {
+          const sRect = scroller.getBoundingClientRect()
+          const eRect = el.getBoundingClientRect()
+          const nextTop = scroller.scrollTop + (eRect.top - sRect.top) - 24
+          console.log('[PDF] retry: scrolling to highlight element', { attempts, nextTop })
+          scroller.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
+          return
+        }
+      }
+      if (attempts < maxAttempts) {
+        if (pageNum) scrollViewerToPage(pageNum)
+        setTimeout(tryOnce, delay)
+      } else {
+        console.warn('[PDF] retry: failed to find highlight element after attempts', maxAttempts)
+      }
+    }
+    tryOnce()
+  }
+
+  // Ensure PdfHighlighter/pages are ready, then perform jump
+  function ensureReadyAndJump(id: string, pageNum: number | undefined, target: any) {
+    pendingJumpRef.current = { id, page: pageNum }
+    let tries = 0
+    const max = 30
+    const step = 150
+    const tick = () => {
+      tries += 1
+      const pdfContainer = getPdfJsContainer()
+      const hasPages = !!pdfContainer?.querySelector('.page')
+      const hasLayer = !!pdfContainer?.querySelector('.PdfHighlighter__highlight-layer')
+      const hasScrollRef = !!scrollToHighlightRef.current
+      if (pageNum) scrollViewerToPage(pageNum)
+      if (hasPages || hasLayer || hasScrollRef) {
+        if (hasScrollRef) {
+          try { console.log('[PDF] ensureReady: using library scroll'); scrollToHighlightRef.current!(target || id) } catch {}
+        }
+        scrollToHighlightWithRetries(id, pageNum)
+        pendingJumpRef.current = null
+        return
+      }
+      if (tries < max) {
+        try { window.dispatchEvent(new Event('resize')) } catch {}
+        setTimeout(tick, step)
+      } else {
+        console.warn('[PDF] ensureReady: timed out waiting for pages/highlighter')
+        if (pageNum) scrollViewerToPage(pageNum)
+        scrollToHighlightWithRetries(id, pageNum)
+        pendingJumpRef.current = null
+      }
+    }
+    tick()
+  }
 
   return (
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
@@ -223,18 +379,38 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   key={blobUrl || fileName}
                   pdfDocument={pdfDocument}
                   pdfScaleValue="page-fit"
-                  onScrollChange={() => { /* noop */ }}
+                  onScrollChange={() => { console.log('[PDF] PdfHighlighter onScrollChange') }}
                   scrollRef={(scrollTo: any) => {
+                    console.log('[PDF] scrollRef set')
+                    isHighlighterReadyRef.current = true
+                    // Force a refresh of highlights prop to trigger overlay render now that viewer is ready
+                    setTimeout(() => {
+                      setRphHighlights((prev) => { console.log('[PDF] refreshing highlights after ready'); return prev.slice() })
+                    }, 0)
                     scrollToHighlightRef.current = (arg: any) => {
                       try {
+                        console.log('[PDF] scrollToHighlightRef called with', arg?.id || arg)
                         // Prefer scrolling with the full highlight object
-                        try { scrollTo(arg) } catch {}
+                        try { scrollTo(arg); console.log('[PDF] scrollTo(arg) invoked') } catch (e) { console.warn('[PDF] scrollTo(arg) failed', e) }
                         // Fallback: try by id if available
                         const maybeId = typeof arg === 'string' ? arg : arg?.id
                         if (maybeId) {
-                          try { scrollTo(maybeId) } catch {}
+                          try { scrollTo(maybeId); console.log('[PDF] scrollTo(id) invoked') } catch (e) { console.warn('[PDF] scrollTo(id) failed', e) }
                         }
-                      } catch {}
+                      } catch (e) {
+                        console.warn('[PDF] scrollToHighlightRef error', e)
+                      }
+                    }
+                    // If a jump was queued before ready, perform it now
+                    const pending = pendingJumpRef.current
+                    if (pending) {
+                      console.log('[PDF] performing pending jump', pending)
+                      const target = rphHighlights.find((h) => h.id === pending.id)
+                      if (target) {
+                        try { scrollToHighlightRef.current(target) } catch {}
+                        scrollToHighlightWithRetries(pending.id, pending.page)
+                      }
+                      pendingJumpRef.current = null
                     }
                   }}
                   enableAreaSelection={(event: any) => false}
@@ -247,6 +423,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                           onClick={() => {
                             const id = generateId()
                             const comment = { text: content?.text || '', emoji: '' }
+                            console.log('[PDF] add highlight', { id, position, content })
                             setRphHighlights((prev) => {
                               const next = [...prev, { id, position, content, comment }]
                               // Save immediately to avoid losing changes if the view is closed quickly
@@ -261,6 +438,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                         <button
                           className="px-2 py-0.5 text-xs rounded border border-gray-300 hover:bg-gray-50"
                           onClick={() => {
+                            console.log('[PDF] cancel add highlight')
                             hideTip()
                           }}
                         >
@@ -272,6 +450,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   highlightTransform={(highlight: any, _index: number, _setTip: any, _hideTip: any, _viewportToScaled: any, _screenshot: any, isScrolledTo: boolean) => (
                     <div key={highlight.id} data-hl-id={highlight.id}>
                       <Highlight position={highlight.position} isScrolledTo={isScrolledTo} comment={highlight.comment} />
+                      {isScrolledTo ? <div style={{ display: 'none' }} data-hl-scrolled-flag={highlight.id} /> : null}
                     </div>
                   )}
                   highlights={rphHighlights}
@@ -291,50 +470,25 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           <SplitHighlights
             highlights={rphHighlights}
             onJumpTo={(id) => {
+              console.log('[PDF] onJumpTo clicked', id)
               const target = rphHighlights.find((h) => h.id === id)
               if (target) {
-                // Try the library's scroll helper first
+                const pageNum = getPageNumberFromHighlight(target)
+                // Try the library's scroll helper first if ready
                 if (scrollToHighlightRef.current) {
-                  try { scrollToHighlightRef.current(target) } catch {}
+                  try { console.log('[PDF] attempting scroll via library helper'); scrollToHighlightRef.current(target) } catch (e) { console.warn('[PDF] library helper scroll failed', e) }
+                  if (pageNum) scrollViewerToPage(pageNum)
+                  scrollToHighlightWithRetries(id, pageNum)
+                } else {
+                  console.warn('[PDF] scrollToHighlightRef not ready')
+                  ensureReadyAndJump(id, pageNum, target)
                 }
-                // Fallback A: scroll to the specific highlight element (prefer the actual part rect)
-                const tryScrollToHighlightEl = () => {
-                  try {
-                    const containerRoot = viewerRef.current
-                    const el = (containerRoot || document).querySelector(`[data-hl-id="${id}"]`) as HTMLElement | null
-                    const inner = el ? (el.querySelector('.Highlight__part') as HTMLElement | null) : null
-                    const targetEl = inner || el
-                    const scroller = getScrollableAncestor(targetEl)
-                    if (targetEl && scroller) {
-                      const sRect = scroller.getBoundingClientRect()
-                      const eRect = targetEl.getBoundingClientRect()
-                      const nextTop = scroller.scrollTop + (eRect.top - sRect.top) - 24
-                      scroller.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
-                      return true
-                    }
-                  } catch {}
-                  return false
-                }
-                if (!tryScrollToHighlightEl()) {
-                  try { setTimeout(tryScrollToHighlightEl, 50) } catch {}
-                }
-                // Fallback B: scroll the viewer to the page top if needed
-                try {
-                  const pageNum = getPageNumberFromHighlight(target)
-                  const container = viewerRef.current
-                  if (pageNum && container) {
-                    const pageEl = container.querySelector(`div.react-pdf__Page[data-page-number="${pageNum}"]`) as HTMLElement | null
-                    if (pageEl) {
-                      const cRect = container.getBoundingClientRect()
-                      const pRect = pageEl.getBoundingClientRect()
-                      const nextTop = container.scrollTop + (pRect.top - cRect.top) - 16
-                      container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
-                    }
-                  }
-                } catch {}
+              } else {
+                console.warn('[PDF] onJumpTo: target not found in rphHighlights')
               }
             }}
             onDelete={(id) => {
+              console.log('[PDF] delete highlight', id)
               setRphHighlights((prev) => prev.filter((h) => h.id !== id))
             }}
           />
