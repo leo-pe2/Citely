@@ -154,25 +154,6 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return () => { if (id) window.clearTimeout(id) }
   }, [rphHighlights])
 
-  // Nudge the scroll container to trigger PdfHighlighter's internal layout without user click
-  React.useEffect(() => {
-    if (!hasLoadedHighlightsRef.current) return
-    if (!blobUrl) return
-    const container = viewerRef.current
-    const id = window.setTimeout(() => {
-      try { window.dispatchEvent(new Event('resize')) } catch {}
-      if (container) {
-        try { container.dispatchEvent(new Event('scroll')) } catch {}
-        try {
-          const current = container.scrollTop
-          container.scrollTop = current + 1
-          container.scrollTop = current
-        } catch {}
-      }
-    }, 50)
-    return () => { if (id) window.clearTimeout(id) }
-  }, [blobUrl, rphHighlights])
-
   // Flush unsaved changes on unmount
   React.useEffect(() => {
     return () => {
@@ -212,7 +193,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                 console.log('PdfLoader loaded', { pages: pdfDocument?.numPages })
                 return (
                 <PdfHighlighter
-                  key={`${blobUrl || fileName}:${rphHighlights.length}`}
+                  key={blobUrl || fileName}
                   pdfDocument={pdfDocument}
                   pdfScaleValue="page-fit"
                   onScrollChange={() => { /* noop */ }}

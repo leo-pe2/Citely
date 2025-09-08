@@ -141,7 +141,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
   }, [id])
 
   return (
-    <div className="pt-4 pr-4 pb-4 pl-6 flex flex-col" ref={containerRef}>
+    <div className="pt-4 pr-4 pb-4 pl-6 flex flex-col min-h-screen" ref={containerRef}>
       <div className="flex items-center justify-between">
         <div className="flex items-baseline gap-3">
           <h1 className="text-[46px] leading-none font-regular font-heading">{displayName}</h1>
@@ -223,28 +223,11 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
 
       <hr className="border-t border-gray-200 my-4" />
 
-      <div className="flex-1 flex items-center justify-center w-full mt-2">
+      <div className="flex-1 w-full mt-2">
         {activePage === 'kanban' ? (
-          hasItems ? (
+          <div className="w-full">
             <AddedItem projectId={id} />
-          ) : (
-            <div className="flex flex-col items-center text-center text-gray-600 mx-auto w-full">
-              <p className="text-lg">
-                This category is empty, start
-                <br />
-                by importing an item.
-              </p>
-              <div className="my-6 h-24 w-px bg-gray-300 mx-auto" />
-              <div className="flex flex-col items-center gap-3">
-                <button className="rounded-full bg-gray-200 px-4 py-2 text-base text-gray-700" onClick={handleAddItem}>
-                  + Add Item
-                </button>
-                <button className="rounded-full bg-gray-200 px-4 py-2 text-base text-gray-700" onClick={handleDeleteCategory}>
-                  × Delete
-                </button>
-              </div>
-            </div>
-          )
+          </div>
         ) : (
           <Notes />
         )}
