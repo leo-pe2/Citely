@@ -24,6 +24,31 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const hasLoadedHighlightsRef = React.useRef<boolean>(false)
   const saveDebounceRef = React.useRef<number | null>(null)
   const lastSavedSnapshotRef = React.useRef<string>("[]")
+  function getPageNumberFromHighlight(h: any): number | undefined {
+    if (!h || !h.position) return undefined
+    if (typeof h.position.pageNumber === 'number') return h.position.pageNumber
+    if (h.position.boundingRect && typeof h.position.boundingRect.pageNumber === 'number') return h.position.boundingRect.pageNumber
+    if (Array.isArray(h.position.rects) && h.position.rects.length > 0 && typeof h.position.rects[0]?.pageNumber === 'number') {
+      return h.position.rects[0].pageNumber
+    }
+    return undefined
+  }
+
+  function getScrollableAncestor(element: HTMLElement | null): HTMLElement | null {
+    let el: HTMLElement | null = element?.parentElement || null
+    try {
+      while (el && el !== document.body) {
+        const style = window.getComputedStyle(el)
+        const overflowY = style.overflowY
+        if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+          return el
+        }
+        el = el.parentElement
+      }
+    } catch {}
+    const docEl = document.scrollingElement as HTMLElement | null
+    return docEl || null
+  }
 
   function generateId(): string {
     return `hl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -200,8 +225,16 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   pdfScaleValue="page-fit"
                   onScrollChange={() => { /* noop */ }}
                   scrollRef={(scrollTo: any) => {
-                    scrollToHighlightRef.current = (h: any) => {
-                      try { scrollTo(h) } catch {}
+                    scrollToHighlightRef.current = (arg: any) => {
+                      try {
+                        // Prefer scrolling with the full highlight object
+                        try { scrollTo(arg) } catch {}
+                        // Fallback: try by id if available
+                        const maybeId = typeof arg === 'string' ? arg : arg?.id
+                        if (maybeId) {
+                          try { scrollTo(maybeId) } catch {}
+                        }
+                      } catch {}
                     }
                   }}
                   enableAreaSelection={(event: any) => false}
@@ -237,7 +270,9 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                     )
                   }}
                   highlightTransform={(highlight: any, _index: number, _setTip: any, _hideTip: any, _viewportToScaled: any, _screenshot: any, isScrolledTo: boolean) => (
-                    <Highlight key={highlight.id} position={highlight.position} isScrolledTo={isScrolledTo} comment={highlight.comment} />
+                    <div key={highlight.id} data-hl-id={highlight.id}>
+                      <Highlight position={highlight.position} isScrolledTo={isScrolledTo} comment={highlight.comment} />
+                    </div>
                   )}
                   highlights={rphHighlights}
                 />
@@ -257,8 +292,46 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             highlights={rphHighlights}
             onJumpTo={(id) => {
               const target = rphHighlights.find((h) => h.id === id)
-              if (target && scrollToHighlightRef.current) {
-                scrollToHighlightRef.current(target)
+              if (target) {
+                // Try the library's scroll helper first
+                if (scrollToHighlightRef.current) {
+                  try { scrollToHighlightRef.current(target) } catch {}
+                }
+                // Fallback A: scroll to the specific highlight element (prefer the actual part rect)
+                const tryScrollToHighlightEl = () => {
+                  try {
+                    const containerRoot = viewerRef.current
+                    const el = (containerRoot || document).querySelector(`[data-hl-id="${id}"]`) as HTMLElement | null
+                    const inner = el ? (el.querySelector('.Highlight__part') as HTMLElement | null) : null
+                    const targetEl = inner || el
+                    const scroller = getScrollableAncestor(targetEl)
+                    if (targetEl && scroller) {
+                      const sRect = scroller.getBoundingClientRect()
+                      const eRect = targetEl.getBoundingClientRect()
+                      const nextTop = scroller.scrollTop + (eRect.top - sRect.top) - 24
+                      scroller.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
+                      return true
+                    }
+                  } catch {}
+                  return false
+                }
+                if (!tryScrollToHighlightEl()) {
+                  try { setTimeout(tryScrollToHighlightEl, 50) } catch {}
+                }
+                // Fallback B: scroll the viewer to the page top if needed
+                try {
+                  const pageNum = getPageNumberFromHighlight(target)
+                  const container = viewerRef.current
+                  if (pageNum && container) {
+                    const pageEl = container.querySelector(`div.react-pdf__Page[data-page-number="${pageNum}"]`) as HTMLElement | null
+                    if (pageEl) {
+                      const cRect = container.getBoundingClientRect()
+                      const pRect = pageEl.getBoundingClientRect()
+                      const nextTop = container.scrollTop + (pRect.top - cRect.top) - 16
+                      container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
+                    }
+                  }
+                } catch {}
               }
             }}
             onDelete={(id) => {
