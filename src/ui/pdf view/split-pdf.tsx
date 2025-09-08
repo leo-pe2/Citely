@@ -101,12 +101,14 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       ;(async () => {
         try {
           const page = await pdf.getPage(pageNumber)
+          if (destroyed) return
           const unscaled = page.getViewport({ scale: 1 })
           const widthScale = fittedWidth > 0 ? fittedWidth / unscaled.width : 1
           // Ignore height for scaling to guarantee width fits; still cap to 100%
           const heightScale = fittedHeight > 0 ? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY
           const scale = Math.max(0.1, Math.min(widthScale, heightScale, 1))
-          const container = pageContainerRef.current!
+          const container = pageContainerRef.current
+          if (!container) return
           container.innerHTML = ''
 
           const annotationModeValue = (pdfjsLib as any).AnnotationMode?.ENABLE ?? 1
@@ -120,6 +122,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             textLayerMode: 2,
           })
           pageView.setPdfPage(page)
+          if (destroyed) return
           await pageView.draw()
         } catch (e) {
           if (!destroyed) console.error('Failed to render page', e)
