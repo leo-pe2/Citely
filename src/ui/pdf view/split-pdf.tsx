@@ -1,4 +1,5 @@
 import React from 'react'
+import SplitHighlights from './split-highlights'
 import { PdfLoader, PdfHighlighter, Highlight } from 'react-pdf-highlighter'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
@@ -19,6 +20,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const [viewerHeight, setViewerHeight] = React.useState<number>(0)
   const resizeRaf = React.useRef<number | null>(null)
   const [rphHighlights, setRphHighlights] = React.useState<any[]>([])
+  const scrollToHighlightRef = React.useRef<((h: any) => void) | null>(null)
   const hasLoadedHighlightsRef = React.useRef<boolean>(false)
   const saveDebounceRef = React.useRef<number | null>(null)
   const lastSavedSnapshotRef = React.useRef<string>("[]")
@@ -197,7 +199,11 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   pdfDocument={pdfDocument}
                   pdfScaleValue="page-fit"
                   onScrollChange={() => { /* noop */ }}
-                  scrollRef={(scrollTo: any) => { console.log('PdfHighlighter mounted'); /* store if needed */ }}
+                  scrollRef={(scrollTo: any) => {
+                    scrollToHighlightRef.current = (h: any) => {
+                      try { scrollTo(h) } catch {}
+                    }
+                  }}
                   enableAreaSelection={(event: any) => false}
                   onSelectionFinished={(position: any, content: any, hideTip: () => void) => {
                     // Show a minimal confirmation so user explicitly creates a highlight
@@ -247,7 +253,15 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           )}
         </div>
         <div className="w-1/2 h-full min-w-0">
-          {/* Right side reserved for notes and interactions */}
+          <SplitHighlights
+            highlights={rphHighlights}
+            onJumpTo={(id) => {
+              const target = rphHighlights.find((h) => h.id === id)
+              if (target && scrollToHighlightRef.current) {
+                scrollToHighlightRef.current(target)
+              }
+            }}
+          />
         </div>
       </div>
     </div>
