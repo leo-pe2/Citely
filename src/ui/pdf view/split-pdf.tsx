@@ -26,6 +26,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const [viewerWidth, setViewerWidth] = React.useState<number>(0)
   const [viewerHeight, setViewerHeight] = React.useState<number>(0)
   const eventBusRef = React.useRef<any | null>(null)
+  const resizeRaf = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     let revoked = false
@@ -79,21 +80,29 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     if (!el) return
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setViewerWidth(Math.floor(entry.contentRect.width))
-        setViewerHeight(Math.floor(entry.contentRect.height))
+        if (resizeRaf.current != null) cancelAnimationFrame(resizeRaf.current)
+        const rect = entry.contentRect
+        resizeRaf.current = requestAnimationFrame(() => {
+          setViewerWidth(Math.floor(rect.width))
+          setViewerHeight(Math.floor(rect.height))
+        })
       }
     })
     ro.observe(el)
     const rect = el.getBoundingClientRect()
     setViewerWidth(Math.floor(rect.width))
     setViewerHeight(Math.floor(rect.height))
-    return () => ro.disconnect()
+    return () => {
+      ro.disconnect()
+      if (resizeRaf.current != null) cancelAnimationFrame(resizeRaf.current)
+    }
   }, [])
 
   type HighlightRect = { left: number; top: number; width: number; height: number }
 
   function PdfPage({ pdf, pageNumber, fittedWidth, fittedHeight, eventBus }: { pdf: any; pageNumber: number; fittedWidth: number; fittedHeight: number; eventBus: any }) {
     const pageContainerRef = React.useRef<HTMLDivElement | null>(null)
+    const pageViewRef = React.useRef<any | null>(null)
     const [highlights, setHighlights] = React.useState<HighlightRect[]>([])
 
     React.useEffect(() => {
@@ -104,11 +113,15 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           if (destroyed) return
           const unscaled = page.getViewport({ scale: 1 })
           const widthScale = fittedWidth > 0 ? fittedWidth / unscaled.width : 1
-          // Ignore height for scaling to guarantee width fits; still cap to 100%
-          const heightScale = fittedHeight > 0 ? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY
+          const heightScale = fittedHeight > 0 ? fittedHeight / unscaled.height : 1
+          // Fit whole page within container; avoid upscaling > 100%
           const scale = Math.max(0.1, Math.min(widthScale, heightScale, 1))
           const container = pageContainerRef.current
           if (!container) return
+          // Cancel any in-progress render for this page before starting new
+          if (pageViewRef.current && typeof pageViewRef.current.cancelRendering === 'function') {
+            try { pageViewRef.current.cancelRendering() } catch {}
+          }
           container.innerHTML = ''
 
           const annotationModeValue = (pdfjsLib as any).AnnotationMode?.ENABLE ?? 1
@@ -122,13 +135,19 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             textLayerMode: 2,
           })
           pageView.setPdfPage(page)
+          pageViewRef.current = pageView
           if (destroyed) return
           await pageView.draw()
         } catch (e) {
           if (!destroyed) console.error('Failed to render page', e)
         }
       })()
-      return () => { destroyed = true }
+      return () => {
+        destroyed = true
+        if (pageViewRef.current && typeof pageViewRef.current.cancelRendering === 'function') {
+          try { pageViewRef.current.cancelRendering() } catch {}
+        }
+      }
     }, [pdf, pageNumber, fittedWidth, fittedHeight, eventBus])
 
     // Right-click to add highlight for the current selection
