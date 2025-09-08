@@ -19,3 +19,19 @@ input[type="reset"] {
 .font-heading {
   font-family: 'Alegreya', serif;
 }
+
+/* Clamp selection: only text layer is selectable */
+.pdf-viewer-container {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.pdf-viewer-container .textLayer,
+.pdf-viewer-container .textLayer * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  cursor: text;
+}

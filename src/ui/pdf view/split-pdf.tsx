@@ -1,6 +1,5 @@
 import React from 'react'
 import { PdfLoader, PdfHighlighter, Highlight } from 'react-pdf-highlighter'
-import { v4 as uuidv4 } from 'uuid'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
 type SplitPdfProps = {
@@ -99,7 +98,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         </button>
       </div>
       <div className="flex-1 min-h-0 flex">
-        <div ref={viewerRef} className="relative w-1/2 h-full min-w-0 border-r border-gray-200 bg-gray-50 overflow-y-auto overflow-x-hidden overscroll-contain">
+        <div ref={viewerRef} className="relative w-1/2 h-full min-w-0 border-r border-gray-200 bg-gray-50 overflow-y-auto overflow-x-hidden overscroll-contain pdf-viewer-container">
           {blobUrl ? (
             <PdfLoader
               url={blobUrl}
@@ -116,11 +115,9 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   pdfScaleValue="page-fit"
                   onScrollChange={() => { /* noop */ }}
                   scrollRef={(scrollTo: any) => { console.log('PdfHighlighter mounted'); /* store if needed */ }}
-                  enableAreaSelection={(event: any) => event.altKey === true}
-                  onSelectionFinished={(position: any, content: any, hideTip: () => void) => {
-                    const id = uuidv4()
-                    const comment = { text: content?.text || '', emoji: '' }
-                    setRphHighlights((prev) => [...prev, { id, position, content, comment }])
+                  enableAreaSelection={(event: any) => false}
+                  onSelectionFinished={(_position: any, _content: any, hideTip: () => void) => {
+                    // Do not create highlights automatically; only user-initiated actions should add highlights
                     hideTip()
                     return null
                   }}
