@@ -261,6 +261,9 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                 scrollToHighlightRef.current(target)
               }
             }}
+            onDelete={(id) => {
+              setRphHighlights((prev) => prev.filter((h) => h.id !== id))
+            }}
           />
         </div>
       </div>
