@@ -25,6 +25,12 @@ contextBridge.exposeInMainWorld('api', {
       set: (projectId: string, statuses: Record<string, string>): Promise<{ ok: true }> =>
         ipcRenderer.invoke('projects:kanban:set', projectId, statuses),
     },
+    highlights: {
+      get: (projectId: string, pdfFileName: string): Promise<unknown[]> =>
+        ipcRenderer.invoke('projects:highlights:get', projectId, pdfFileName),
+      set: (projectId: string, pdfFileName: string, highlights: unknown[]): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('projects:highlights:set', projectId, pdfFileName, highlights),
+    },
   },
   files: {
     readFileBase64: (absolutePath: string): Promise<string> =>

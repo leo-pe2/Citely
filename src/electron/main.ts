@@ -135,6 +135,38 @@ async function listProjectItems(projectId: string): Promise<{ items: { fileName:
     return { items };
 }
 
+// Highlights persistence per project and file
+type HighlightRecord = {
+    id: string;
+    position: unknown;
+    content: unknown;
+    comment?: unknown;
+};
+
+async function readHighlights(projectId: string, pdfFileName: string): Promise<HighlightRecord[]> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) return [];
+    const storeFile = path.join(projectDir, 'highlights', `${pdfFileName}.json`);
+    if (!existsSync(storeFile)) return [];
+    try {
+        const text = await fs.readFile(storeFile, 'utf-8');
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return parsed as HighlightRecord[];
+    } catch {}
+    return [];
+}
+
+async function writeHighlights(projectId: string, pdfFileName: string, highlights: HighlightRecord[]): Promise<{ ok: true }> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    const hlDir = path.join(projectDir, 'highlights');
+    await fs.mkdir(hlDir, { recursive: true });
+    const storeFile = path.join(hlDir, `${pdfFileName}.json`);
+    await fs.writeFile(storeFile, JSON.stringify(highlights ?? [], null, 2), 'utf-8');
+    return { ok: true };
+}
+
 // Kanban status persistence
 async function readKanbanStatuses(projectId: string): Promise<Record<string, string>> {
     const root = await ensureProjectsRoot();
@@ -227,6 +259,13 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:kanban:set', async (_event, projectId: string, statuses: Record<string, string>) => {
         return writeKanbanStatuses(projectId, statuses);
+    });
+    // Highlights IPC
+    ipcMain.handle('projects:highlights:get', async (_event, projectId: string, pdfFileName: string) => {
+        return readHighlights(projectId, pdfFileName);
+    });
+    ipcMain.handle('projects:highlights:set', async (_event, projectId: string, pdfFileName: string, highlights: HighlightRecord[]) => {
+        return writeHighlights(projectId, pdfFileName, highlights);
     });
     ipcMain.handle('file:read-base64', async (_event, absolutePath: string) => {
         // Only allow reading files within userData/projects for safety
