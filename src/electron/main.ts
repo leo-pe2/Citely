@@ -226,4 +226,14 @@ app.on('ready', () => {
     ipcMain.handle('projects:kanban:set', async (_event, projectId: string, statuses: Record<string, string>) => {
         return writeKanbanStatuses(projectId, statuses);
     });
+    ipcMain.handle('file:read-base64', async (_event, absolutePath: string) => {
+        // Only allow reading files within userData/projects for safety
+        const root = await ensureProjectsRoot();
+        const normalized = path.normalize(absolutePath);
+        if (!normalized.startsWith(root)) {
+            throw new Error('Access denied');
+        }
+        const data = await fs.readFile(normalized);
+        return data.toString('base64');
+    });
 });

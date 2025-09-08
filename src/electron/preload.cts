@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.invoke('projects:kanban:set', projectId, statuses),
     },
   },
+  files: {
+    readFileBase64: (absolutePath: string): Promise<string> =>
+      ipcRenderer.invoke('file:read-base64', absolutePath),
+  },
 })
 
 

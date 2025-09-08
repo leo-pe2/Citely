@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import { DndContext, DragOverlay, PointerSensor, closestCenter, useSensor, useSensors, type DragStartEvent, type DragEndEvent, type DragCancelEvent } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import penIcon from '../assets/pen.svg'
+import openIcon from '../assets/square-arrow-out-up-right.svg'
 
 type AddedItemProps = {
   projectId: string
@@ -162,10 +164,49 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         }}
         {...attributes}
         {...listeners}
-        className={`relative w-full h-[150px] rounded-xl overflow-hidden cursor-move ${bgClass} transition-colors duration-200 ease-out`}
+        className={`relative w-full h-[150px] rounded-xl overflow-hidden cursor-move ${bgClass} transition-colors duration-200 ease-out group`}
         style={{ ...style }}
       >
-        <div className="absolute left-3 bottom-2 right-3 text-sm text-gray-800 truncate">{it.fileName}</div>
+        <div className="absolute left-3 right-3 top-4 flex items-center gap-2">
+          <div className="text-sm text-gray-800 truncate w-1/2">{it.fileName}</div>
+          <div className="flex items-center gap-1 ml-auto opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
+            <button
+              type="button"
+              aria-label="Edit"
+              className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-white/70"
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              draggable={false}
+            >
+              <img src={penIcon} alt="" className="w-4 h-4" draggable={false} />
+            </button>
+            <button
+              type="button"
+              aria-label="Open split view"
+              className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-white/70"
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                window.dispatchEvent(
+                  new CustomEvent('project:item:split', {
+                    detail: { projectId, path: it.path, fileName: it.fileName },
+                  })
+                )
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              draggable={false}
+            >
+              <img src={openIcon} alt="" className="w-4 h-4" draggable={false} />
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -283,7 +324,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
                 })(),
               }}
             >
-              <div className="absolute left-3 bottom-2 right-3 text-sm text-gray-800 truncate">
+              <div className="absolute left-3 top-4 text-sm text-gray-800 truncate w-1/2">
                 {items.find((it) => it.path === activePath)?.fileName || ''}
               </div>
             </div>

@@ -66,6 +66,8 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
     return () => window.removeEventListener('project-overrides:changed', onOverridesChanged)
   }, [id])
 
+  // Split view handled at Home level
+
   // Keep local selection in sync when switching categories or opening the menu
   useEffect(() => {
     setSelectedColor(readOverrides()[id]?.color ?? '#000000')
