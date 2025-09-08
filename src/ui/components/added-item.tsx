@@ -17,6 +17,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   const [pathToStatus, setPathToStatus] = useState<Record<string, ItemStatus>>({})
   const [activePath, setActivePath] = useState<string | null>(null)
   const [activeSize, setActiveSize] = useState<{ width: number; height: number } | null>(null)
+  const [activeTitleWidth, setActiveTitleWidth] = useState<number | null>(null)
   const [overStatus, setOverStatus] = useState<ItemStatus | null>(null)
   const [saveDebounce, setSaveDebounce] = useState<number | null>(null)
   const nodeRefMap = useRef<Record<string, HTMLElement | null>>({})
@@ -115,8 +116,15 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     if (el) {
       const rect = el.getBoundingClientRect()
       setActiveSize({ width: rect.width, height: rect.height })
+      const titleEl = el.querySelector('.file-title') as HTMLElement | null
+      if (titleEl) {
+        setActiveTitleWidth(titleEl.getBoundingClientRect().width)
+      } else {
+        setActiveTitleWidth(null)
+      }
     } else {
       setActiveSize(null)
+      setActiveTitleWidth(null)
     }
   }
 
@@ -125,6 +133,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     const overId = event.over?.id ? String(event.over.id) : null
     setActivePath(null)
     setActiveSize(null)
+    setActiveTitleWidth(null)
     setOverStatus(null)
     if (!overId) return
     // Droppable ids are the status values
@@ -137,6 +146,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   function onDragCancel(_event?: DragCancelEvent) {
     setActivePath(null)
     setActiveSize(null)
+    setActiveTitleWidth(null)
     setOverStatus(null)
   }
 
@@ -168,12 +178,12 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         style={{ ...style }}
       >
         <div className="absolute left-3 right-3 top-4 flex items-center gap-2">
-          <div className="text-sm text-gray-800 truncate w-1/2">{it.fileName}</div>
+          <div className="file-title text-sm text-gray-800 truncate w-1/2">{it.fileName}</div>
           <div className="flex items-center gap-1 ml-auto opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
             <button
               type="button"
               aria-label="Edit"
-              className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-white/70"
+              className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10"
               onClick={(e) => {
                 e.stopPropagation()
                 e.preventDefault()
@@ -188,7 +198,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
             <button
               type="button"
               aria-label="Open split view"
-              className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-white/70"
+              className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-black/10"
               onClick={(e) => {
                 e.stopPropagation()
                 e.preventDefault()
@@ -324,7 +334,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
                 })(),
               }}
             >
-              <div className="absolute left-3 top-4 text-sm text-gray-800 truncate w-1/2">
+              <div className="absolute left-3 top-4 text-sm text-gray-800 truncate" style={{ maxWidth: activeTitleWidth || undefined }}>
                 {items.find((it) => it.path === activePath)?.fileName || ''}
               </div>
             </div>
