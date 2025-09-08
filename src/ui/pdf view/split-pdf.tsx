@@ -1,5 +1,7 @@
 import React from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
+import { EventBus, PDFPageView } from 'pdfjs-dist/web/pdf_viewer.mjs'
+import 'pdfjs-dist/web/pdf_viewer.css'
 // Use Vite to resolve worker file URL
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - url import provided by Vite
@@ -18,7 +20,12 @@ type SplitPdfProps = {
 export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPdfProps) {
   const [pdfData, setPdfData] = React.useState<Uint8Array | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
-  const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
+  const [numPages, setNumPages] = React.useState<number>(0)
+  const [pdfDoc, setPdfDoc] = React.useState<any | null>(null)
+  const viewerRef = React.useRef<HTMLDivElement | null>(null)
+  const [viewerWidth, setViewerWidth] = React.useState<number>(0)
+  const [viewerHeight, setViewerHeight] = React.useState<number>(0)
+  const eventBusRef = React.useRef<any | null>(null)
 
   React.useEffect(() => {
     let revoked = false
@@ -46,40 +53,118 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     }
   }, [path])
 
-  // Render first page at 100% zoom using PDF.js
+  // Load document and page count
   React.useEffect(() => {
-    let destroyed = false
+    let cancelled = false
     ;(async () => {
-      if (!pdfData || !canvasRef.current) return
+      if (!pdfData) return
       try {
         const loadingTask = pdfjsLib.getDocument({ data: pdfData })
         const pdf = await loadingTask.promise
-        if (destroyed) return
-        const page = await pdf.getPage(1)
-        const scale = 1
-        const viewport = page.getViewport({ scale })
-
-        const canvas = canvasRef.current!
-        const context = canvas.getContext('2d')!
-        const outputScale = Math.max(1, window.devicePixelRatio || 1)
-        canvas.width = Math.floor(viewport.width * outputScale)
-        canvas.height = Math.floor(viewport.height * outputScale)
-        canvas.style.width = `${viewport.width}px`
-        canvas.style.height = `${viewport.height}px`
-        context.setTransform(outputScale, 0, 0, outputScale, 0, 0)
-
-        await page.render({ canvasContext: context, viewport }).promise
+        if (cancelled) return
+        setPdfDoc(pdf)
+        setNumPages(pdf.numPages || 0)
+        if (!eventBusRef.current) eventBusRef.current = new EventBus()
       } catch (e) {
-        if (!destroyed) {
-          console.error('Failed to render PDF', e)
-          setLoadError('Failed to render PDF')
-        }
+        console.error('Failed to load PDF', e)
+        if (!cancelled) setLoadError('Failed to load PDF')
       }
     })()
-    return () => {
-      destroyed = true
-    }
+    return () => { cancelled = true }
   }, [pdfData])
+
+  // Measure available width to fit pages nicely
+  React.useEffect(() => {
+    const el = viewerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setViewerWidth(Math.floor(entry.contentRect.width))
+        setViewerHeight(Math.floor(entry.contentRect.height))
+      }
+    })
+    ro.observe(el)
+    const rect = el.getBoundingClientRect()
+    setViewerWidth(Math.floor(rect.width))
+    setViewerHeight(Math.floor(rect.height))
+    return () => ro.disconnect()
+  }, [])
+
+  type HighlightRect = { left: number; top: number; width: number; height: number }
+
+  function PdfPage({ pdf, pageNumber, fittedWidth, fittedHeight, eventBus }: { pdf: any; pageNumber: number; fittedWidth: number; fittedHeight: number; eventBus: any }) {
+    const pageContainerRef = React.useRef<HTMLDivElement | null>(null)
+    const [highlights, setHighlights] = React.useState<HighlightRect[]>([])
+
+    React.useEffect(() => {
+      let destroyed = false
+      ;(async () => {
+        try {
+          const page = await pdf.getPage(pageNumber)
+          const unscaled = page.getViewport({ scale: 1 })
+          const widthScale = fittedWidth > 0 ? fittedWidth / unscaled.width : 1
+          // Ignore height for scaling to guarantee width fits; still cap to 100%
+          const heightScale = fittedHeight > 0 ? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY
+          const scale = Math.max(0.1, Math.min(widthScale, heightScale, 1))
+          const container = pageContainerRef.current!
+          container.innerHTML = ''
+
+          const pageView: any = new PDFPageView({
+            container,
+            id: pageNumber,
+            scale,
+            defaultViewport: unscaled,
+            eventBus,
+            textLayerMode: 2,
+          })
+          pageView.setPdfPage(page)
+          await pageView.draw()
+        } catch (e) {
+          if (!destroyed) console.error('Failed to render page', e)
+        }
+      })()
+      return () => { destroyed = true }
+    }, [pdf, pageNumber, fittedWidth, fittedHeight, eventBus])
+
+    // Right-click to add highlight for the current selection
+    const onContextMenu = React.useCallback((e: React.MouseEvent) => {
+      const selection = window.getSelection()
+      if (!selection || selection.isCollapsed) return
+      const ranges: DOMRect[] = []
+      for (let i = 0; i < selection.rangeCount; i += 1) {
+        const range = selection.getRangeAt(i)
+        const rects = Array.from(range.getClientRects())
+        ranges.push(...rects)
+      }
+      if (ranges.length === 0) return
+      const container = pageContainerRef.current!
+      const containerRect = container.getBoundingClientRect()
+      const newRects: HighlightRect[] = ranges.map(r => ({
+        left: r.left - containerRect.left,
+        top: r.top - containerRect.top,
+        width: r.width,
+        height: r.height,
+      }))
+      setHighlights(prev => [...prev, ...newRects])
+      selection.removeAllRanges()
+      e.preventDefault()
+    }, [])
+
+    return (
+      <div className="relative mb-4 flex justify-center select-text" onContextMenu={onContextMenu}>
+        <div ref={pageContainerRef} className="shadow-sm bg-white" />
+        <div className="absolute inset-0 pointer-events-none">
+          {highlights.map((h, idx) => (
+            <div
+              key={idx}
+              className="absolute bg-yellow-300/60 rounded-sm"
+              style={{ left: h.left, top: h.top, width: h.width, height: h.height }}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
@@ -94,10 +179,21 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         </button>
       </div>
       <div className="flex-1 min-h-0 flex">
-        <div className="w-1/2 h-full min-w-0 border-r border-gray-200 bg-gray-50 overflow-auto">
+        <div ref={viewerRef} className="w-1/2 h-full min-w-0 border-r border-gray-200 bg-gray-50 overflow-y-auto overflow-x-hidden overscroll-contain">
           {pdfData ? (
-            <div className="w-full h-full flex items-start justify-center p-4">
-              <canvas ref={canvasRef} className="shadow-sm bg-white" />
+            <div className="pdfViewer w-full flex flex-col items-center p-4 gap-4">
+              {pdfDoc && numPages > 0 && eventBusRef.current && (
+                Array.from({ length: numPages }, (_, i) => (
+                  <PdfPage
+                    key={i}
+                    pdf={pdfDoc}
+                    pageNumber={i + 1}
+                    fittedWidth={Math.max(0, viewerWidth - 32)}
+                    fittedHeight={Math.max(0, viewerHeight - 32)}
+                    eventBus={eventBusRef.current}
+                  />
+                ))
+              )}
             </div>
           ) : loadError ? (
             <div className="w-full h-full flex items-center justify-center text-center px-6 text-red-600 text-sm">
