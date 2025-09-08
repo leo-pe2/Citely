@@ -109,12 +109,14 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           const container = pageContainerRef.current!
           container.innerHTML = ''
 
+          const annotationModeValue = (pdfjsLib as any).AnnotationMode?.ENABLE ?? 1
           const pageView: any = new PDFPageView({
             container,
             id: pageNumber,
             scale,
             defaultViewport: unscaled,
             eventBus,
+            annotationMode: annotationModeValue,
             textLayerMode: 2,
           })
           pageView.setPdfPage(page)
