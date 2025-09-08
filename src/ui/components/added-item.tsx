@@ -18,6 +18,8 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   const [activePath, setActivePath] = useState<string | null>(null)
   const [activeSize, setActiveSize] = useState<{ width: number; height: number } | null>(null)
   const [activeTitleWidth, setActiveTitleWidth] = useState<number | null>(null)
+  const [activeTitleTop, setActiveTitleTop] = useState<number | null>(null)
+  const [activeTitleLeft, setActiveTitleLeft] = useState<number | null>(null)
   const [overStatus, setOverStatus] = useState<ItemStatus | null>(null)
   const [saveDebounce, setSaveDebounce] = useState<number | null>(null)
   const nodeRefMap = useRef<Record<string, HTMLElement | null>>({})
@@ -118,13 +120,20 @@ export default function AddedItem({ projectId }: AddedItemProps) {
       setActiveSize({ width: rect.width, height: rect.height })
       const titleEl = el.querySelector('.file-title') as HTMLElement | null
       if (titleEl) {
-        setActiveTitleWidth(titleEl.getBoundingClientRect().width)
+        const tRect = titleEl.getBoundingClientRect()
+        setActiveTitleWidth(tRect.width)
+        setActiveTitleTop(tRect.top - rect.top)
+        setActiveTitleLeft(tRect.left - rect.left)
       } else {
         setActiveTitleWidth(null)
+        setActiveTitleTop(null)
+        setActiveTitleLeft(null)
       }
     } else {
       setActiveSize(null)
       setActiveTitleWidth(null)
+      setActiveTitleTop(null)
+      setActiveTitleLeft(null)
     }
   }
 
@@ -147,6 +156,8 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     setActivePath(null)
     setActiveSize(null)
     setActiveTitleWidth(null)
+    setActiveTitleTop(null)
+    setActiveTitleLeft(null)
     setOverStatus(null)
   }
 
@@ -334,8 +345,16 @@ export default function AddedItem({ projectId }: AddedItemProps) {
                 })(),
               }}
             >
-              <div className="absolute left-3 top-4 text-sm text-gray-800 truncate" style={{ maxWidth: activeTitleWidth || undefined }}>
-                {items.find((it) => it.path === activePath)?.fileName || ''}
+              <div
+                className="absolute"
+                style={{
+                  left: activeTitleLeft ?? 12,
+                  top: activeTitleTop ?? 16,
+                }}
+              >
+                <div className="file-title text-sm text-gray-800 truncate" style={{ width: activeTitleWidth || undefined }}>
+                  {items.find((it) => it.path === activePath)?.fileName || ''}
+                </div>
               </div>
             </div>
           ) : null}
