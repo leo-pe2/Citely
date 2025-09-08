@@ -25,10 +25,16 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete }: Spli
     )
   }
 
+  const orderedHighlights = React.useMemo(() => {
+    const items = highlights.map((h, i) => ({ h, i, page: getPageNumber(h) ?? Number.POSITIVE_INFINITY }))
+    items.sort((a, b) => (a.page === b.page ? a.i - b.i : a.page - b.page))
+    return items.map((it) => it.h)
+  }, [highlights])
+
   return (
     <div className="w-full h-full overflow-y-auto p-4">
       <ol className="space-y-4">
-        {highlights.map((h, idx) => {
+        {orderedHighlights.map((h, idx) => {
           const text = h?.content?.text || ''
           const pageNumber = getPageNumber(h)
           return (
