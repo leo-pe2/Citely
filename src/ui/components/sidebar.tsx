@@ -12,7 +12,14 @@ type SidebarProps = {
 }
 
 function Sidebar({ onSelectCategory }: SidebarProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('sidebar-open')
+      return stored === null ? true : stored === 'true'
+    } catch {
+      return true
+    }
+  })
   type SidebarProject = { id: string; name: string; path: string }
   const [projects, setProjects] = useState<SidebarProject[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -23,6 +30,12 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
 
   const OPEN_WIDTH = 256
   const CLOSED_WIDTH = 56
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sidebar-open', isOpen ? 'true' : 'false')
+    } catch {}
+  }, [isOpen])
 
   useEffect(() => {
     const api = (window as unknown as {
