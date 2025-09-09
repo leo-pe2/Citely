@@ -1,6 +1,7 @@
 import React from 'react'
 import SplitHighlights from './split-highlights'
 import { PdfLoader, PdfHighlighter, Highlight } from 'react-pdf-highlighter'
+import PdfToolbar from '../components/pdf-toolbar'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
 type SplitPdfProps = {
@@ -460,6 +461,8 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">Loading PDF…</div>
           )}
+          {/* Bottom toolbar overlay */}
+          <PdfToolbar />
         </div>
         <div className="w-1/2 h-full min-w-0">
           <SplitHighlights
