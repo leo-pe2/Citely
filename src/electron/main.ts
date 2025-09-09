@@ -270,6 +270,33 @@ app.on('ready', () => {
     ipcMain.handle('projects:items:list', async (_event, projectId: string) => {
         return listProjectItems(projectId);
     });
+    ipcMain.handle('projects:item:delete', async (_event, absolutePath: string) => {
+        const root = await ensureProjectsRoot();
+        const normalized = path.normalize(absolutePath);
+        if (!normalized.startsWith(root)) {
+            throw new Error('Access denied');
+        }
+        try {
+            await fs.rm(normalized, { force: true });
+        } catch {}
+        return { ok: true } as const;
+    });
+    ipcMain.handle('projects:item:delete-all', async (_event, projectId: string, pdfFileName: string, absolutePath: string) => {
+        const root = await ensureProjectsRoot();
+        const normalized = path.normalize(absolutePath);
+        if (!normalized.startsWith(root)) {
+            throw new Error('Access denied');
+        }
+        try {
+            await fs.rm(normalized, { force: true });
+        } catch {}
+        try {
+            const projectDir = path.join(root, projectId);
+            const hlFile = path.join(projectDir, 'highlights', `${pdfFileName}.json`);
+            await fs.rm(hlFile, { force: true });
+        } catch {}
+        return { ok: true } as const;
+    });
     ipcMain.handle('projects:kanban:get', async (_event, projectId: string) => {
         return readKanbanStatuses(projectId);
     });

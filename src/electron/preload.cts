@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.invoke('projects:items:exists', projectId),
       list: (projectId: string): Promise<{ items: { fileName: string; path: string }[] }> =>
         ipcRenderer.invoke('projects:items:list', projectId),
+      delete: (absolutePath: string): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('projects:item:delete', absolutePath),
+      deleteAll: (projectId: string, pdfFileName: string, absolutePath: string): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('projects:item:delete-all', projectId, pdfFileName, absolutePath),
     },
     kanban: {
       get: (projectId: string): Promise<Record<string, string>> =>
