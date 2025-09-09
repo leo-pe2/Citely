@@ -21,6 +21,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const [viewerHeight, setViewerHeight] = React.useState<number>(0)
   const resizeRaf = React.useRef<number | null>(null)
   const [rphHighlights, setRphHighlights] = React.useState<any[]>([])
+  const [tool, setTool] = React.useState<'highlighter' | 'clear' | 'camera'>('clear')
   const scrollToHighlightRef = React.useRef<((h: any) => void) | null>(null)
   const hasLoadedHighlightsRef = React.useRef<boolean>(false)
   const saveDebounceRef = React.useRef<number | null>(null)
@@ -148,6 +149,32 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     const cleanup = attach()
     return () => { if (typeof cleanup === 'function') cleanup() }
   }, [])
+
+  // Enable Ctrl/Cmd+C copy for selected PDF text in clear mode
+  React.useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return
+      if (e.key.toLowerCase() !== 'c') return
+      if (tool !== 'clear') return
+      try {
+        const sel = window.getSelection()
+        const text = sel ? sel.toString() : ''
+        if (!text || text.trim().length === 0) return
+        // Ensure selection is within the PDF viewer region to avoid hijacking global copy
+        const container = viewerRef.current
+        const anchorNode = sel?.anchorNode as Node | null
+        const focusNode = sel?.focusNode as Node | null
+        const withinViewer = !!(container && anchorNode && container.contains(anchorNode)) || !!(container && focusNode && container.contains(focusNode))
+        if (!withinViewer) return
+        // Attempt programmatic copy as a fallback
+        navigator.clipboard?.writeText(text).catch(() => {})
+        // Allow default menu handling too, but prevent double side-effects
+        // Do not stopPropagation to keep app-wide shortcuts working
+      } catch {}
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, [tool])
 
   // Rely on PdfLoader for document loading; keep local counters unused for now
 
@@ -409,9 +436,9 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                       pendingJumpRef.current = null
                     }
                   }}
-                  enableAreaSelection={(event: any) => false}
+                  enableAreaSelection={(event: any) => tool === 'camera'}
                   onSelectionFinished={(position: any, content: any, hideTip: () => void) => {
-                    // Show a minimal confirmation so user explicitly creates a highlight
+                    if (tool !== 'highlighter') return null
                     return (
                       <div className="rounded-md bg-white border border-gray-300 shadow-sm p-2 flex items-center gap-2">
                         <button
@@ -422,7 +449,6 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                             console.log('[PDF] add highlight', { id, position, content })
                             setRphHighlights((prev) => {
                               const next = [...prev, { id, position, content, comment }]
-                              // Save immediately to avoid losing changes if the view is closed quickly
                               saveHighlightsNow(next)
                               return next
                             })
@@ -462,7 +488,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">Loading PDF…</div>
           )}
           {/* Bottom toolbar overlay */}
-          <PdfToolbar />
+          <PdfToolbar active={tool} onChangeActive={setTool} />
         </div>
         <div className="w-1/2 h-full min-w-0">
           <SplitHighlights

@@ -2,13 +2,15 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import highlighterIcon from '../assets/highlighter.svg'
 import cameraIcon from '../assets/camera.svg'
+import xIcon from '../assets/x.svg'
 
 type PdfToolbarProps = {
   roundedPx?: number
+  active: 'highlighter' | 'clear' | 'camera'
+  onChangeActive: (next: 'highlighter' | 'clear' | 'camera') => void
 }
 
-export default function PdfToolbar({ roundedPx = 20 }: PdfToolbarProps) {
-  const [active, setActive] = React.useState<'highlighter' | 'camera'>('highlighter')
+export default function PdfToolbar({ roundedPx = 20, active, onChangeActive }: PdfToolbarProps) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center z-10">
       <div
@@ -20,7 +22,7 @@ export default function PdfToolbar({ roundedPx = 20 }: PdfToolbarProps) {
           <motion.div
             className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white/15"
             initial={false}
-            animate={{ x: active === 'highlighter' ? 0 : 38 }}
+            animate={{ x: active === 'highlighter' ? 0 : (active === 'clear' ? 38 : 76) }}
             transition={{ type: 'spring', stiffness: 380, damping: 28 }}
             aria-hidden
           />
@@ -30,9 +32,19 @@ export default function PdfToolbar({ roundedPx = 20 }: PdfToolbarProps) {
             title="Highlighter"
             aria-label="Highlighter"
             aria-pressed={active === 'highlighter'}
-            onClick={() => setActive('highlighter')}
+            onClick={() => onChangeActive('highlighter')}
           >
             <img src={highlighterIcon} alt="" className="w-5 h-5 invert" />
+          </button>
+          <button
+            type="button"
+            className="relative z-10 h-8 w-8 flex items-center justify-center hover:opacity-90 active:scale-[0.98] transition"
+            title="Clear"
+            aria-label="Clear"
+            aria-pressed={active === 'clear'}
+            onClick={() => onChangeActive('clear')}
+          >
+            <img src={xIcon} alt="" className="w-5 h-5 invert" />
           </button>
           <button
             type="button"
@@ -40,7 +52,7 @@ export default function PdfToolbar({ roundedPx = 20 }: PdfToolbarProps) {
             title="Snapshot"
             aria-label="Snapshot"
             aria-pressed={active === 'camera'}
-            onClick={() => setActive('camera')}
+            onClick={() => onChangeActive('camera')}
           >
             <img src={cameraIcon} alt="" className="w-5 h-5 invert" />
           </button>

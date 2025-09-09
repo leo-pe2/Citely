@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, dialog, Menu, MenuItemConstructorOptions } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
@@ -229,6 +229,22 @@ app.on('ready', () => {
                 : path.join(app.getAppPath(), 'desktopIcon.png') }
             : {}),
     });
+
+    // Application menu to enable native shortcuts like Ctrl+C/Ctrl+V on Windows/Linux
+    try {
+        const template: MenuItemConstructorOptions[] = [];
+        if (process.platform === 'darwin') {
+            template.push({ role: 'appMenu' as const });
+        }
+        template.push(
+            { role: 'fileMenu' as const },
+            { role: 'editMenu' as const },
+            { role: 'viewMenu' as const },
+            { role: 'windowMenu' as const },
+        );
+        const menu = Menu.buildFromTemplate(template);
+        Menu.setApplicationMenu(menu);
+    } catch {}
     if (isDev) {
         mainWindow.loadURL('http://localhost:5123');
     } else {
