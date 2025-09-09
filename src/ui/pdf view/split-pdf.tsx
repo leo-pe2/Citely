@@ -2,6 +2,8 @@ import React from 'react'
 import SplitHighlights from './split-highlights'
 import { PdfLoader, PdfHighlighter, Highlight } from 'react-pdf-highlighter'
 import PdfToolbar from '../components/pdf-toolbar'
+import checkIcon from '../assets/check.svg'
+import filesCopyIcon from '../assets/files_copy.svg'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
 type SplitPdfProps = {
@@ -21,7 +23,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const [viewerHeight, setViewerHeight] = React.useState<number>(0)
   const resizeRaf = React.useRef<number | null>(null)
   const [rphHighlights, setRphHighlights] = React.useState<any[]>([])
-  const [tool, setTool] = React.useState<'highlighter' | 'clear' | 'camera'>('clear')
+  const [tool, setTool] = React.useState<'highlighter' | 'camera'>('highlighter')
   const scrollToHighlightRef = React.useRef<((h: any) => void) | null>(null)
   const hasLoadedHighlightsRef = React.useRef<boolean>(false)
   const saveDebounceRef = React.useRef<number | null>(null)
@@ -150,12 +152,11 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return () => { if (typeof cleanup === 'function') cleanup() }
   }, [])
 
-  // Enable Ctrl/Cmd+C copy for selected PDF text in clear mode
+  // Enable Ctrl/Cmd+C copy for selected PDF text within the PDF viewer
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (!(e.ctrlKey || e.metaKey)) return
       if (e.key.toLowerCase() !== 'c') return
-      if (tool !== 'clear') return
       try {
         const sel = window.getSelection()
         const text = sel ? sel.toString() : ''
@@ -174,7 +175,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     }
     window.addEventListener('keydown', onKeyDown)
     return () => { window.removeEventListener('keydown', onKeyDown) }
-  }, [tool])
+  }, [])
 
   // Rely on PdfLoader for document loading; keep local counters unused for now
 
@@ -440,32 +441,45 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   onSelectionFinished={(position: any, content: any, hideTip: () => void) => {
                     if (tool !== 'highlighter') return null
                     return (
-                      <div className="rounded-md bg-white border border-gray-300 shadow-sm p-2 flex items-center gap-2">
-                        <button
-                          className="px-2 py-0.5 text-xs rounded bg-black text-white hover:opacity-90"
-                          onClick={() => {
-                            const id = generateId()
-                            const comment = { text: '', emoji: '' }
-                            console.log('[PDF] add highlight', { id, position, content })
-                            setRphHighlights((prev) => {
-                              const next = [...prev, { id, position, content, comment }]
-                              saveHighlightsNow(next)
-                              return next
-                            })
-                            hideTip()
-                          }}
-                        >
-                          Add highlight
-                        </button>
-                        <button
-                          className="px-2 py-0.5 text-xs rounded border border-gray-300 hover:bg-gray-50"
-                          onClick={() => {
-                            console.log('[PDF] cancel add highlight')
-                            hideTip()
-                          }}
-                        >
-                          Cancel
-                        </button>
+                      <div className="px-[4px] py-0.5 shadow-lg border border-white/10 bg-black/40 backdrop-blur-md rounded-[14px]">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="h-7 w-7 flex items-center justify-center hover:opacity-90 active:scale-[0.98] transition"
+                            title="Add highlight"
+                            aria-label="Add highlight"
+                            onClick={() => {
+                              const id = generateId()
+                              const comment = { text: '', emoji: '' }
+                              console.log('[PDF] add highlight', { id, position, content })
+                              setRphHighlights((prev) => {
+                                const next = [...prev, { id, position, content, comment }]
+                                saveHighlightsNow(next)
+                                return next
+                              })
+                              hideTip()
+                            }}
+                          >
+                            <img src={checkIcon} alt="" className="w-4 h-4 invert" />
+                          </button>
+                          <button
+                            type="button"
+                            className="h-7 w-7 flex items-center justify-center hover:opacity-90 active:scale-[0.98] transition"
+                            title="Copy text"
+                            aria-label="Copy text"
+                            onClick={() => {
+                              try {
+                                const text = (content && content.text) ? String(content.text) : ''
+                                if (text && text.trim().length > 0) {
+                                  navigator.clipboard?.writeText(text).catch(() => {})
+                                }
+                              } catch {}
+                              hideTip()
+                            }}
+                          >
+                            <img src={filesCopyIcon} alt="" className="w-4 h-4 invert" />
+                          </button>
+                        </div>
                       </div>
                     )
                   }}

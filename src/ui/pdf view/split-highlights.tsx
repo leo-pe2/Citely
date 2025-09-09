@@ -1,4 +1,5 @@
 import React from 'react'
+import trashIcon from '../assets/trash.svg'
 
 type SplitHighlightsProps = {
   highlights: any[]
@@ -86,7 +87,13 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                           <span className="mx-1 text-gray-400">/</span>
                           <span>Page {pageNumber ?? '—'}</span>
                         </div>
-                        <button className="text-black hover:underline" onClick={() => { console.log('[HL] delete', h.id); onDelete(h.id) }}>Delete</button>
+                        <button
+                          type="button"
+                          className="h-8 w-8 flex items-center justify-center rounded hover:bg-gray-500/10 active:scale-[0.98] transition"
+                          onClick={() => { console.log('[HL] delete', h.id); onDelete(h.id) }}
+                        >
+                          <img src={trashIcon} alt="" className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                     <div className="col-[1] row-[4] flex items-stretch justify-center">

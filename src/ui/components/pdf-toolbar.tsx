@@ -2,12 +2,11 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import highlighterIcon from '../assets/highlighter.svg'
 import cameraIcon from '../assets/camera.svg'
-import xIcon from '../assets/x.svg'
 
 type PdfToolbarProps = {
   roundedPx?: number
-  active: 'highlighter' | 'clear' | 'camera'
-  onChangeActive: (next: 'highlighter' | 'clear' | 'camera') => void
+  active: 'highlighter' | 'camera'
+  onChangeActive: (next: 'highlighter' | 'camera') => void
 }
 
 export default function PdfToolbar({ roundedPx = 20, active, onChangeActive }: PdfToolbarProps) {
@@ -22,7 +21,7 @@ export default function PdfToolbar({ roundedPx = 20, active, onChangeActive }: P
           <motion.div
             className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-white/15"
             initial={false}
-            animate={{ x: active === 'highlighter' ? 0 : (active === 'clear' ? 38 : 76) }}
+            animate={{ x: active === 'highlighter' ? 0 : 38 }}
             transition={{ type: 'spring', stiffness: 380, damping: 28 }}
             aria-hidden
           />
@@ -35,16 +34,6 @@ export default function PdfToolbar({ roundedPx = 20, active, onChangeActive }: P
             onClick={() => onChangeActive('highlighter')}
           >
             <img src={highlighterIcon} alt="" className="w-5 h-5 invert" />
-          </button>
-          <button
-            type="button"
-            className="relative z-10 h-8 w-8 flex items-center justify-center hover:opacity-90 active:scale-[0.98] transition"
-            title="Clear"
-            aria-label="Clear"
-            aria-pressed={active === 'clear'}
-            onClick={() => onChangeActive('clear')}
-          >
-            <img src={xIcon} alt="" className="w-5 h-5 invert" />
           </button>
           <button
             type="button"
