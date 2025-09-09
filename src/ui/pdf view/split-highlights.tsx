@@ -31,6 +31,10 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete }: Spli
     return items.map((it) => it.h)
   }, [highlights])
 
+  React.useEffect(() => {
+    console.log('[HL] list render count=', orderedHighlights.length)
+  }, [orderedHighlights])
+
   return (
     <div className="w-full h-full overflow-y-auto p-4">
       <ol className="space-y-4">
@@ -49,7 +53,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete }: Spli
                 <div className="col-[2] row-[1]">
                   <button
                     className="w-full text-left text-base text-gray-900 border border-gray-300 border-dashed rounded-md px-2 py-2 hover:bg-gray-50 inline-flex items-center"
-                    onClick={() => onJumpTo(h.id)}
+                    onClick={() => { console.log('[HL] click jump', h.id, 'page=', pageNumber); onJumpTo(h.id) }}
                     title="Go to highlight"
                   >
                     {text || '—'}
@@ -73,7 +77,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete }: Spli
                       <span className="mx-1 text-gray-400">/</span>
                       <span>Page {pageNumber ?? '—'}</span>
                     </div>
-                    <button className="text-black hover:underline" onClick={() => onDelete(h.id)}>Delete</button>
+                    <button className="text-black hover:underline" onClick={() => { console.log('[HL] delete', h.id); onDelete(h.id) }}>Delete</button>
                   </div>
                 </div>
                 <div className="col-[1] row-[4] flex items-stretch justify-center">
