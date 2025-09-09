@@ -417,7 +417,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                           className="px-2 py-0.5 text-xs rounded bg-black text-white hover:opacity-90"
                           onClick={() => {
                             const id = generateId()
-                            const comment = { text: content?.text || '', emoji: '' }
+                            const comment = { text: '', emoji: '' }
                             console.log('[PDF] add highlight', { id, position, content })
                             setRphHighlights((prev) => {
                               const next = [...prev, { id, position, content, comment }]
@@ -485,6 +485,9 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             onDelete={(id) => {
               console.log('[PDF] delete highlight', id)
               setRphHighlights((prev) => prev.filter((h) => h.id !== id))
+            }}
+            onChangeComment={(id, text) => {
+              setRphHighlights((prev) => prev.map((h) => h.id === id ? { ...h, comment: { ...(h.comment || {}), text } } : h))
             }}
           />
         </div>

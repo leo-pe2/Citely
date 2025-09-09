@@ -4,6 +4,7 @@ type SplitHighlightsProps = {
   highlights: any[]
   onJumpTo: (id: string) => void
   onDelete: (id: string) => void
+  onChangeComment: (id: string, text: string) => void
 }
 
 function getPageNumber(h: any): number | undefined {
@@ -16,7 +17,16 @@ function getPageNumber(h: any): number | undefined {
   return undefined
 }
 
-export default function SplitHighlights({ highlights, onJumpTo, onDelete }: SplitHighlightsProps) {
+export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChangeComment }: SplitHighlightsProps) {
+  const [editingId, setEditingId] = React.useState<string | null>(null)
+
+  function getFirstSentence(input: string): string {
+    if (!input) return ''
+    const match = input.match(/^[\s\S]*?[.!?](?:\s|$)/)
+    if (match && match[0].trim().length > 0) return match[0].trim()
+    const firstLine = input.split('\n')[0]
+    return firstLine
+  }
   if (!highlights || highlights.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
@@ -88,11 +98,52 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete }: Spli
                   <div className="w-3 h-3 rounded-full bg-black" />
                 </div>
                 <div className="col-[2] row-[5]">
-                  <input
-                    type="text"
-                    placeholder="Your comment"
-                    className="w-full px-2 py-2 rounded-md bg-gray-100 text-gray-900 placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black/10"
-                  />
+                  {editingId === h.id ? (
+                    <textarea
+                      rows={1}
+                      autoFocus
+                      placeholder="Your comment"
+                      className="w-full px-2 py-2 rounded-md bg-gray-100 text-gray-900 placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black/10 overflow-hidden resize-none"
+                      value={h?.comment?.text ?? ''}
+                      onChange={(e) => onChangeComment(h.id, e.target.value)}
+                      onInput={(e) => {
+                        const el = e.currentTarget
+                        el.style.height = 'auto'
+                        el.style.height = `${el.scrollHeight}px`
+                      }}
+                      onBlur={() => setEditingId(null)}
+                      ref={(el) => {
+                        if (el) {
+                          el.style.height = 'auto'
+                          el.style.height = `${el.scrollHeight}px`
+                        }
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="w-full text-left px-2 py-2 rounded-md bg-gray-100 text-gray-900 border border-gray-200 hover:bg-gray-50"
+                      onClick={() => setEditingId(h.id)}
+                      title="Edit comment"
+                    >
+                      {(h?.comment?.text ?? '').trim().length > 0 ? (
+                        <>
+                          {(() => {
+                            const full = (h?.comment?.text ?? '').trim()
+                            const first = getFirstSentence(full)
+                            const hasMore = first.length < full.length
+                            return (
+                              <>
+                                <span>{first}</span>
+                                {hasMore ? <span className="text-gray-400"> …</span> : null}
+                              </>
+                            )
+                          })()}
+                        </>
+                      ) : (
+                        <span className="text-gray-400">Your comment</span>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </li>
