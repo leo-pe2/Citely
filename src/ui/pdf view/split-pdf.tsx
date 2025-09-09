@@ -124,7 +124,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     }
   }, [path])
 
-  // Attach debug listeners to the internal pdf.js viewer container
+  // Attach click listener (removed scroll log) to the internal pdf.js viewer container
   React.useEffect(() => {
     let removed = false
     function attach() {
@@ -133,18 +133,13 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         if (!removed) setTimeout(attach, 100)
         return
       }
-      const onScroll = () => {
-        try { console.log('[PDF] pdf.js container scrollTop=', container.scrollTop, 'scrollHeight=', container.scrollHeight, 'clientHeight=', container.clientHeight) } catch {}
-      }
       const onClick = (e: Event) => {
         try { console.log('[PDF] pdf.js container click target=', (e.target as HTMLElement)?.className || (e.target as HTMLElement)?.nodeName) } catch {}
       }
-      container.addEventListener('scroll', onScroll, { passive: true })
       container.addEventListener('click', onClick)
-      console.log('[PDF] pdf.js container listeners attached')
+      console.log('[PDF] pdf.js container listeners attached (click only)')
       return () => {
         removed = true
-        container.removeEventListener('scroll', onScroll as any)
         container.removeEventListener('click', onClick as any)
         console.log('[PDF] pdf.js container listeners detached')
       }
