@@ -135,6 +135,62 @@ async function listProjectItems(projectId: string): Promise<{ items: { fileName:
     return { items };
 }
 
+// Highlights persistence per project and file
+type HighlightRecord = {
+    id: string;
+    position: unknown;
+    content: unknown;
+    comment?: unknown;
+};
+
+async function readHighlights(projectId: string, pdfFileName: string): Promise<HighlightRecord[]> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) return [];
+    const storeFile = path.join(projectDir, 'highlights', `${pdfFileName}.json`);
+    if (!existsSync(storeFile)) return [];
+    try {
+        const text = await fs.readFile(storeFile, 'utf-8');
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return parsed as HighlightRecord[];
+    } catch {}
+    return [];
+}
+
+async function writeHighlights(projectId: string, pdfFileName: string, highlights: HighlightRecord[]): Promise<{ ok: true }> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    const hlDir = path.join(projectDir, 'highlights');
+    await fs.mkdir(hlDir, { recursive: true });
+    const storeFile = path.join(hlDir, `${pdfFileName}.json`);
+    await fs.writeFile(storeFile, JSON.stringify(highlights ?? [], null, 2), 'utf-8');
+    return { ok: true };
+}
+
+// Kanban status persistence
+async function readKanbanStatuses(projectId: string): Promise<Record<string, string>> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) return {};
+    const file = path.join(projectDir, 'kanban.json');
+    if (!existsSync(file)) return {};
+    try {
+        const text = await fs.readFile(file, 'utf-8');
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === 'object') return parsed as Record<string, string>;
+    } catch {}
+    return {};
+}
+
+async function writeKanbanStatuses(projectId: string, statuses: Record<string, string>): Promise<{ ok: true }> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    await fs.mkdir(projectDir, { recursive: true });
+    const file = path.join(projectDir, 'kanban.json');
+    await fs.writeFile(file, JSON.stringify(statuses, null, 2), 'utf-8');
+    return { ok: true };
+}
+
 
 app.on('ready', () => {
     // In development, set the app/dock icon from the project root desktopIcon.png
@@ -158,8 +214,10 @@ app.on('ready', () => {
     }
 
     const mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
+        width: 1400,
+        height: 900,
+        minWidth: 1400,
+        minHeight: 900,
         webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,
@@ -195,5 +253,28 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:items:list', async (_event, projectId: string) => {
         return listProjectItems(projectId);
+    });
+    ipcMain.handle('projects:kanban:get', async (_event, projectId: string) => {
+        return readKanbanStatuses(projectId);
+    });
+    ipcMain.handle('projects:kanban:set', async (_event, projectId: string, statuses: Record<string, string>) => {
+        return writeKanbanStatuses(projectId, statuses);
+    });
+    // Highlights IPC
+    ipcMain.handle('projects:highlights:get', async (_event, projectId: string, pdfFileName: string) => {
+        return readHighlights(projectId, pdfFileName);
+    });
+    ipcMain.handle('projects:highlights:set', async (_event, projectId: string, pdfFileName: string, highlights: HighlightRecord[]) => {
+        return writeHighlights(projectId, pdfFileName, highlights);
+    });
+    ipcMain.handle('file:read-base64', async (_event, absolutePath: string) => {
+        // Only allow reading files within userData/projects for safety
+        const root = await ensureProjectsRoot();
+        const normalized = path.normalize(absolutePath);
+        if (!normalized.startsWith(root)) {
+            throw new Error('Access denied');
+        }
+        const data = await fs.readFile(normalized);
+        return data.toString('base64');
     });
 });

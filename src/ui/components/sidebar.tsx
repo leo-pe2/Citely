@@ -109,9 +109,9 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
       initial={false}
       animate={{ width: isOpen ? OPEN_WIDTH : CLOSED_WIDTH }}
       transition={{ type: 'spring', stiffness: 300, damping: 26, mass: 0.4 }}
-      className={`h-full border-r border-gray-200 bg-white flex flex-col`}
+      className={`min-h-screen border-r border-gray-200 bg-white flex flex-col pt-4`}
     >
-      <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-2 mt-6.5`}>
+      <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-4 mt-0`}>
         {isOpen ? (
           <div className="flex-1 overflow-hidden">
             <AnimatePresence initial={false} mode="wait">
