@@ -423,7 +423,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     page: { padding: 24 },
     header: { fontSize: 14, marginBottom: 12 },
     subheader: { fontSize: 10, color: '#666', marginBottom: 12 },
-    item: { marginBottom: 14 },
+    item: { marginBottom: 14, alignItems: 'flex-start' },
     meta: { fontSize: 10, color: '#444', marginBottom: 6 },
     textBlock: { padding: 8, borderWidth: 1, borderColor: '#ddd', fontSize: 11, lineHeight: 1.35 },
     comment: { marginTop: 6, padding: 8, borderWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa', fontSize: 10 },
@@ -460,6 +460,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       const fileBase = fileName.replace(/\.[^/.]+$/, '')
       // A4 width is ~595.28pt; subtract horizontal padding (24*2) to get content width
       const CONTENT_WIDTH = 595.28 - (24 * 2)
+      const PX_TO_PT = 72 / 96 // assume images are 96dpi when converting px -> pt
       // Pre-measure screenshots to render at natural size (no upscaling)
       const measuredMap: Record<string, { width: number; height: number } | undefined> = {}
       await Promise.all(
@@ -492,13 +493,46 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                     h?.screenshot?.dataUrl ? (
                       (() => {
                         const nat = measuredMap[h.id]
-                        if (nat && nat.width > 0 && nat.height > 0) {
-                          const displayWidth = Math.min(nat.width, CONTENT_WIDTH)
-                          const displayHeight = (nat.height * displayWidth) / nat.width
-                          return <PdfImage src={h.screenshot.dataUrl} style={{ width: displayWidth, height: displayHeight }} />
+                        const dpr = typeof h?.screenshot?.devicePixelRatio === 'number' && h.screenshot.devicePixelRatio > 0 ? h.screenshot.devicePixelRatio : 1
+                        const cssW = typeof h?.screenshot?.cssWidth === 'number' ? h.screenshot.cssWidth : undefined
+                        const cssH = typeof h?.screenshot?.cssHeight === 'number' ? h.screenshot.cssHeight : undefined
+                        let baseWidthPt: number | null = null
+                        let baseHeightPt: number | null = null
+                        if (typeof cssW === 'number' && typeof cssH === 'number' && cssW > 0 && cssH > 0) {
+                          baseWidthPt = cssW * PX_TO_PT
+                          baseHeightPt = cssH * PX_TO_PT
+                        } else if (nat && nat.width > 0 && nat.height > 0) {
+                          // Convert pixel dimensions -> points using assumed 96dpi and DPR
+                          baseWidthPt = (nat.width / dpr) * PX_TO_PT
+                          baseHeightPt = (nat.height / dpr) * PX_TO_PT
                         }
-                        // Fallback if measurement failed
-                        return <PdfImage src={h.screenshot.dataUrl} />
+                        if (baseWidthPt && baseHeightPt) {
+                          const displayWidth = Math.min(baseWidthPt, CONTENT_WIDTH)
+                          const displayHeight = (baseHeightPt * displayWidth) / baseWidthPt
+                          return (
+                            <PdfImage
+                              src={h.screenshot.dataUrl}
+                              style={{
+                                width: displayWidth,
+                                height: displayHeight,
+                                minWidth: displayWidth,
+                                maxWidth: displayWidth,
+                                minHeight: displayHeight,
+                                maxHeight: displayHeight,
+                                alignSelf: 'flex-start',
+                                objectFit: 'scale-down',
+                              }}
+                            />
+                          )
+                        }
+                        // Fallback if measurement failed: render modest width to avoid stretching
+                        const fallbackW = Math.min(320 * PX_TO_PT, CONTENT_WIDTH)
+                        return (
+                          <PdfImage
+                            src={h.screenshot.dataUrl}
+                            style={{ width: fallbackW, minWidth: fallbackW, maxWidth: fallbackW, alignSelf: 'flex-start', objectFit: 'scale-down' }}
+                          />
+                        )
                       })()
                     ) : null
                   ) : (
@@ -760,7 +794,19 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                               pageNumber = getPageNumberAtClientPoint(cx, cy)
                             }
                           } catch {}
-                          const item = { id, kind: 'screenshot', screenshot: { dataUrl: snap.dataUrl, pageNumber }, comment: { text: '', emoji: '' } }
+                          const dpr = (typeof window !== 'undefined' && typeof window.devicePixelRatio === 'number') ? window.devicePixelRatio : 1
+                          const item = {
+                            id,
+                            kind: 'screenshot',
+                            screenshot: {
+                              dataUrl: snap.dataUrl,
+                              pageNumber,
+                              cssWidth: rect.width,
+                              cssHeight: rect.height,
+                              devicePixelRatio: dpr,
+                            },
+                            comment: { text: '', emoji: '' }
+                          }
                           setRphHighlights((prev) => {
                             const next = [...prev, item]
                             saveHighlightsNow(next)
