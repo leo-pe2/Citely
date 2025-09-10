@@ -5,6 +5,7 @@ import PdfToolbar from '../components/pdf-toolbar'
 import checkIcon from '../assets/check.svg'
 import xIcon from '../assets/x.svg'
 import filesCopyIcon from '../assets/files_copy.svg'
+import { Document, Page, Text, View, Image as PdfImage, StyleSheet, pdf } from '@react-pdf/renderer'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
 type SplitPdfProps = {
@@ -418,17 +419,169 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return undefined
   }
 
+  const exportStyles = React.useMemo(() => StyleSheet.create({
+    page: { padding: 24 },
+    header: { fontSize: 14, marginBottom: 12 },
+    subheader: { fontSize: 10, color: '#666', marginBottom: 12 },
+    item: { marginBottom: 14, alignItems: 'flex-start' },
+    meta: { fontSize: 10, color: '#444', marginBottom: 6 },
+    textBlock: { padding: 8, borderWidth: 1, borderColor: '#ddd', fontSize: 11, lineHeight: 1.35 },
+    comment: { marginTop: 6, padding: 8, borderWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa', fontSize: 10 },
+    // Image size is set per-element to preserve natural size (no upscaling)
+  }), [])
+
+  function getOrderedForExport(list: any[]): any[] {
+    const items = list.map((h, i) => ({ h, i, page: getPageNumberFromHighlight(h) ?? Number.POSITIVE_INFINITY }))
+    items.sort((a, b) => (a.page === b.page ? a.i - b.i : a.page - b.page))
+    return items.map((it) => it.h)
+  }
+
+  function getImageNaturalSize(dataUrl: string): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+      try {
+        const img: HTMLImageElement = new window.Image()
+        img.addEventListener('load', () => {
+          resolve({ width: img.naturalWidth || img.width, height: img.naturalHeight || img.height })
+        })
+        img.addEventListener('error', () => {
+          reject(new Error('Failed to load image'))
+        })
+        img.src = dataUrl
+      } catch (e) {
+        reject(e)
+      }
+    })
+  }
+
+  async function handleExport() {
+    try {
+      const ordered = getOrderedForExport(rphHighlights)
+      const now = new Date()
+      const fileBase = fileName.replace(/\.[^/.]+$/, '')
+      // A4 width is ~595.28pt; subtract horizontal padding (24*2) to get content width
+      const CONTENT_WIDTH = 595.28 - (24 * 2)
+      const PX_TO_PT = 72 / 96 // assume images are 96dpi when converting px -> pt
+      // Pre-measure screenshots to render at natural size (no upscaling)
+      const measuredMap: Record<string, { width: number; height: number } | undefined> = {}
+      await Promise.all(
+        ordered.map(async (h) => {
+          if (h?.kind === 'screenshot' && h?.screenshot?.dataUrl) {
+            try {
+              measuredMap[h.id] = await getImageNaturalSize(h.screenshot.dataUrl)
+            } catch {
+              measuredMap[h.id] = undefined
+            }
+          }
+        })
+      )
+      const doc = (
+        <Document>
+          <Page size="A4" style={exportStyles.page}>
+            <Text style={exportStyles.header}>Highlights Export — {fileName}</Text>
+            <Text style={exportStyles.subheader}>{now.toLocaleString()}</Text>
+            {ordered.map((h, idx) => {
+              const isScreenshot = h?.kind === 'screenshot'
+              const pageNum = getPageNumberFromHighlight(h)
+              const text = h?.content?.text ? String(h.content.text) : ''
+              const comment = h?.comment?.text ? String(h.comment.text) : ''
+              return (
+                <View key={h.id || String(idx)} style={exportStyles.item} wrap>
+                  <Text style={exportStyles.meta}>
+                    {`${idx + 1}. ${isScreenshot ? 'Screenshot' : 'Annotation'}${typeof pageNum === 'number' ? ` — Page ${pageNum}` : ''}`}
+                  </Text>
+                  {isScreenshot ? (
+                    h?.screenshot?.dataUrl ? (
+                      (() => {
+                        const nat = measuredMap[h.id]
+                        const dpr = typeof h?.screenshot?.devicePixelRatio === 'number' && h.screenshot.devicePixelRatio > 0 ? h.screenshot.devicePixelRatio : 1
+                        const cssW = typeof h?.screenshot?.cssWidth === 'number' ? h.screenshot.cssWidth : undefined
+                        const cssH = typeof h?.screenshot?.cssHeight === 'number' ? h.screenshot.cssHeight : undefined
+                        let baseWidthPt: number | null = null
+                        let baseHeightPt: number | null = null
+                        if (typeof cssW === 'number' && typeof cssH === 'number' && cssW > 0 && cssH > 0) {
+                          baseWidthPt = cssW * PX_TO_PT
+                          baseHeightPt = cssH * PX_TO_PT
+                        } else if (nat && nat.width > 0 && nat.height > 0) {
+                          // Convert pixel dimensions -> points using assumed 96dpi and DPR
+                          baseWidthPt = (nat.width / dpr) * PX_TO_PT
+                          baseHeightPt = (nat.height / dpr) * PX_TO_PT
+                        }
+                        if (baseWidthPt && baseHeightPt) {
+                          const displayWidth = Math.min(baseWidthPt, CONTENT_WIDTH)
+                          const displayHeight = (baseHeightPt * displayWidth) / baseWidthPt
+                          return (
+                            <PdfImage
+                              src={h.screenshot.dataUrl}
+                              style={{
+                                width: displayWidth,
+                                height: displayHeight,
+                                minWidth: displayWidth,
+                                maxWidth: displayWidth,
+                                minHeight: displayHeight,
+                                maxHeight: displayHeight,
+                                alignSelf: 'flex-start',
+                                objectFit: 'scale-down',
+                              }}
+                            />
+                          )
+                        }
+                        // Fallback if measurement failed: render modest width to avoid stretching
+                        const fallbackW = Math.min(320 * PX_TO_PT, CONTENT_WIDTH)
+                        return (
+                          <PdfImage
+                            src={h.screenshot.dataUrl}
+                            style={{ width: fallbackW, minWidth: fallbackW, maxWidth: fallbackW, alignSelf: 'flex-start', objectFit: 'scale-down' }}
+                          />
+                        )
+                      })()
+                    ) : null
+                  ) : (
+                    text ? <Text style={exportStyles.textBlock}>{text}</Text> : <Text style={exportStyles.textBlock}>—</Text>
+                  )}
+                  {comment && <Text style={exportStyles.comment}>{comment}</Text>}
+                </View>
+              )
+            })}
+          </Page>
+        </Document>
+      )
+      const blob = await pdf(doc).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${fileBase} - highlights.pdf`
+      document.body.appendChild(a)
+      a.click()
+      setTimeout(() => {
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }, 0)
+    } catch (e) {
+      console.error('Export failed', e)
+      alert('Failed to export PDF')
+    }
+  }
+
   return (<>
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <div className="text-base text-gray-800 truncate max-w-[70%]" title={fileName}>{fileName}</div>
-        <button
-          className="rounded-md border border-gray-300 px-3 py-1 text-sm hover:border-black"
-          onClick={onClose}
-          aria-label="Close split view"
-        >
-          Close
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="rounded-md border border-gray-300 px-3 py-1 text-sm hover:border-black"
+            onClick={handleExport}
+            aria-label="Export highlights to PDF"
+          >
+            Export PDF
+          </button>
+          <button
+            className="rounded-md border border-gray-300 px-3 py-1 text-sm hover:border-black"
+            onClick={onClose}
+            aria-label="Close split view"
+          >
+            Close
+          </button>
+        </div>
       </div>
       <div className="flex-1 min-h-0 flex">
         <div ref={viewerRef} className="relative w-1/2 h-full min-w-0 border-r border-gray-200 bg-gray-50 overflow-y-auto overflow-x-hidden overscroll-contain pdf-viewer-container">
@@ -641,7 +794,19 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                               pageNumber = getPageNumberAtClientPoint(cx, cy)
                             }
                           } catch {}
-                          const item = { id, kind: 'screenshot', screenshot: { dataUrl: snap.dataUrl, pageNumber }, comment: { text: '', emoji: '' } }
+                          const dpr = (typeof window !== 'undefined' && typeof window.devicePixelRatio === 'number') ? window.devicePixelRatio : 1
+                          const item = {
+                            id,
+                            kind: 'screenshot',
+                            screenshot: {
+                              dataUrl: snap.dataUrl,
+                              pageNumber,
+                              cssWidth: rect.width,
+                              cssHeight: rect.height,
+                              devicePixelRatio: dpr,
+                            },
+                            comment: { text: '', emoji: '' }
+                          }
                           setRphHighlights((prev) => {
                             const next = [...prev, item]
                             saveHighlightsNow(next)
