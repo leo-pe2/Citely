@@ -63,8 +63,8 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                     </div>
                     <div className="col-[2] row-[1]">
                       {isScreenshot ? (
-                        <div className="w-full border border-gray-300 rounded-md overflow-hidden bg-white">
-                          <img src={h?.screenshot?.dataUrl} alt="Screenshot" className="w-full h-auto max-h-[280px] object-contain bg-gray-50" />
+                        <div className="inline-block border border-gray-300 rounded-md overflow-hidden bg-white max-w-full">
+                          <img src={h?.screenshot?.dataUrl} alt="Screenshot" className="block w-auto h-auto max-w-full max-h-[280px] object-contain bg-gray-50" />
                         </div>
                       ) : (
                         <button

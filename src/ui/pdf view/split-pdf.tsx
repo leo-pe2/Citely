@@ -287,6 +287,22 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     }
   }, [projectId, fileName, rphHighlights])
   
+  // Allow quitting camera mode with Escape
+  React.useEffect(() => {
+    function onEsc(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      if (tool === 'camera' || selectionRect || pendingScreenshot) {
+        try { e.preventDefault() } catch {}
+        setPendingScreenshot(null)
+        setSelectionRect(null)
+        selectionAnchorRef.current = null
+        setTool('highlighter')
+      }
+    }
+    window.addEventListener('keydown', onEsc)
+    return () => { window.removeEventListener('keydown', onEsc) }
+  }, [tool, selectionRect, pendingScreenshot])
+  
   // Helper: find pdf.js page element and scroll viewer (pdf.js container) to it
   function scrollViewerToPage(pageNum: number): boolean {
     try {
@@ -445,7 +461,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                       pendingJumpRef.current = null
                     }
                   }}
-                  enableAreaSelection={(event: any) => tool === 'highlighter'}
+                  enableAreaSelection={(event: any) => false}
                   onSelectionFinished={(position: any, content: any, hideTip: () => void) => {
                     if (tool !== 'highlighter') return null
                     return (
