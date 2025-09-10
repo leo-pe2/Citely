@@ -6,6 +6,7 @@ type SplitHighlightsProps = {
   onJumpTo: (id: string) => void
   onDelete: (id: string) => void
   onChangeComment: (id: string, text: string) => void
+  onJumpToPage?: (page: number) => void
 }
 
 function getPageNumber(h: any): number | undefined {
@@ -18,7 +19,7 @@ function getPageNumber(h: any): number | undefined {
   return undefined
 }
 
-export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChangeComment }: SplitHighlightsProps) {
+export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChangeComment, onJumpToPage }: SplitHighlightsProps) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
 
   function getFirstSentence(input: string): string {
@@ -64,7 +65,21 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                     <div className="col-[2] row-[1]">
                       {isScreenshot ? (
                         <div className="inline-block border border-gray-300 rounded-md overflow-hidden bg-white max-w-full">
-                          <img src={h?.screenshot?.dataUrl} alt="Screenshot" className="block w-auto h-auto max-w-full max-h-[280px] object-contain bg-gray-50" />
+                          <img
+                            src={h?.screenshot?.dataUrl}
+                            alt="Screenshot"
+                            className="block w-auto h-auto max-w-full max-h-[280px] object-contain bg-gray-50 cursor-pointer"
+                            title={(() => {
+                              const p = h?.screenshot?.pageNumber
+                              return typeof p === 'number' ? `Go to page ${p}` : 'Screenshot'
+                            })()}
+                            onClick={() => {
+                              try {
+                                const p = h?.screenshot?.pageNumber
+                                if (typeof p === 'number' && onJumpToPage) onJumpToPage(p)
+                              } catch {}
+                            }}
+                          />
                         </div>
                       ) : (
                         <button
@@ -91,7 +106,18 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                       <div className="flex items-center text-sm text-gray-600">
                         <div className="flex-1">
                           {isScreenshot ? (
-                            <span className="font-medium">Screenshot</span>
+                            <>
+                              <span className="font-medium">Screenshot</span>
+                              {(() => {
+                                const p = h?.screenshot?.pageNumber
+                                return typeof p === 'number' ? (
+                                  <>
+                                    <span className="mx-1 text-gray-400">/</span>
+                                    <span>Page {p}</span>
+                                  </>
+                                ) : null
+                              })()}
+                            </>
                           ) : (
                             <>
                               <span className="font-medium">Annotation</span>

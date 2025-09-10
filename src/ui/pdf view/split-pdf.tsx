@@ -397,6 +397,27 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     tick()
   }
 
+  // Determine pdf.js page number at a given window/client point
+  function getPageNumberAtClientPoint(clientX: number, clientY: number): number | undefined {
+    try {
+      const pdfContainer = getPdfJsContainer()
+      const root: ParentNode = pdfContainer || viewerRef.current || document
+      const pages = root.querySelectorAll('.page') as NodeListOf<HTMLElement>
+      for (let i = 0; i < pages.length; i++) {
+        const p = pages[i]
+        const r = p.getBoundingClientRect()
+        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+          const val = p.getAttribute('data-page-number')
+          if (val) {
+            const n = parseInt(val, 10)
+            if (!Number.isNaN(n)) return n
+          }
+        }
+      }
+    } catch {}
+    return undefined
+  }
+
   return (<>
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -609,7 +630,18 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                           const rect = selectionRect
                           if (!snap || !rect) return
                           const id = generateId()
-                          const item = { id, kind: 'screenshot', screenshot: { dataUrl: snap.dataUrl }, comment: { text: '', emoji: '' } }
+                          // Compute page at the center of the selection in window coords
+                          let pageNumber: number | undefined
+                          try {
+                            const host = viewerRef.current as HTMLDivElement | null
+                            if (host) {
+                              const hostRect = host.getBoundingClientRect()
+                              const cx = hostRect.left + rect.x + (rect.width / 2)
+                              const cy = hostRect.top + rect.y + (rect.height / 2)
+                              pageNumber = getPageNumberAtClientPoint(cx, cy)
+                            }
+                          } catch {}
+                          const item = { id, kind: 'screenshot', screenshot: { dataUrl: snap.dataUrl, pageNumber }, comment: { text: '', emoji: '' } }
                           setRphHighlights((prev) => {
                             const next = [...prev, item]
                             saveHighlightsNow(next)
@@ -673,6 +705,10 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             }}
             onChangeComment={(id, text) => {
               setRphHighlights((prev) => prev.map((h) => h.id === id ? { ...h, comment: { ...(h.comment || {}), text } } : h))
+            }}
+            onJumpToPage={(page) => {
+              // Scroll the viewer to the given page number
+              scrollViewerToPage(page)
             }}
           />
         </div>
