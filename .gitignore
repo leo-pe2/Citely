@@ -12,6 +12,7 @@ dist
 dist-react
 dist-electron
 *.local
+readme.md
 
 # Editor directories and files
 .vscode/*
@@ -23,3 +24,4 @@ dist-electron
 *.njsproj
 *.sln
 *.sw?
+
