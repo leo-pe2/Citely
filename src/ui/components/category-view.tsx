@@ -178,25 +178,25 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
             </button>
 
             {menuOpen ? (
-              <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded shadow-md w-[300px] p-3 z-10">
+              <div className="absolute right-0 top-full mt-2 bg-white/80 backdrop-blur-md border border-white/10 rounded-lg shadow-lg w-[300px] p-3 z-10">
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Project name</label>
+                    <label className="block text-xs text-black/70 mb-1">Project name</label>
                     <input
-                      className="w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-black"
+                      className="w-full rounded border border-black/20 bg-white/5 text-black placeholder-black/50 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-white/20"
                       value={displayName}
                       onChange={(e) => updateName(e.target.value)}
                       placeholder="Enter name"
                     />
                   </div>
                   <div>
-                    <div className="block text-xs text-gray-500 mb-1">Folder color</div>
+                    <div className="block text-xs text-black/70 mb-1">Folder color</div>
                     <div className="flex items-center gap-2 flex-wrap">
                       {colors.map((c) => (
                         <button
                           key={c}
                           className={`w-6 h-6 rounded-full border ${
-                            selectedColor === c ? 'border-gray-300 ring-2 ring-gray-300' : 'border-gray-300 hover:border-black'
+                            selectedColor === c ? 'border-black/40 ring-2 ring-white/40' : 'border-white/20 hover:border-white'
                           }`}
                           style={{ backgroundColor: c }}
                           onClick={() => updateColor(c)}

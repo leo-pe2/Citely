@@ -1,6 +1,10 @@
 import React from 'react'
 import SplitHighlights from './split-highlights'
 import { PdfLoader, PdfHighlighter, Highlight } from 'react-pdf-highlighter'
+import PdfToolbar from '../components/pdf-toolbar'
+import checkIcon from '../assets/check.svg'
+import xIcon from '../assets/x.svg'
+import filesCopyIcon from '../assets/files_copy.svg'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
 type SplitPdfProps = {
@@ -20,6 +24,10 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const [viewerHeight, setViewerHeight] = React.useState<number>(0)
   const resizeRaf = React.useRef<number | null>(null)
   const [rphHighlights, setRphHighlights] = React.useState<any[]>([])
+  const [tool, setTool] = React.useState<'highlighter' | 'camera'>('highlighter')
+  const [pendingScreenshot, setPendingScreenshot] = React.useState<{ dataUrl: string } | null>(null)
+  const [isCapturing, setIsCapturing] = React.useState<boolean>(false)
+  const overlayHighlights = React.useMemo(() => rphHighlights.filter((h) => h && h.kind !== 'screenshot'), [rphHighlights])
   const scrollToHighlightRef = React.useRef<((h: any) => void) | null>(null)
   const hasLoadedHighlightsRef = React.useRef<boolean>(false)
   const saveDebounceRef = React.useRef<number | null>(null)
@@ -148,6 +156,31 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return () => { if (typeof cleanup === 'function') cleanup() }
   }, [])
 
+  // Enable Ctrl/Cmd+C copy for selected PDF text within the PDF viewer
+  React.useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return
+      if (e.key.toLowerCase() !== 'c') return
+      try {
+        const sel = window.getSelection()
+        const text = sel ? sel.toString() : ''
+        if (!text || text.trim().length === 0) return
+        // Ensure selection is within the PDF viewer region to avoid hijacking global copy
+        const container = viewerRef.current
+        const anchorNode = sel?.anchorNode as Node | null
+        const focusNode = sel?.focusNode as Node | null
+        const withinViewer = !!(container && anchorNode && container.contains(anchorNode)) || !!(container && focusNode && container.contains(focusNode))
+        if (!withinViewer) return
+        // Attempt programmatic copy as a fallback
+        navigator.clipboard?.writeText(text).catch(() => {})
+        // Allow default menu handling too, but prevent double side-effects
+        // Do not stopPropagation to keep app-wide shortcuts working
+      } catch {}
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, [])
+
   // Rely on PdfLoader for document loading; keep local counters unused for now
 
   // Measure available width to fit pages nicely (outer wrapper)
@@ -208,6 +241,10 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     }
   }, [projectId, fileName])
 
+  // In-app selection overlay state (for window-only capture)
+  const selectionAnchorRef = React.useRef<{ x: number; y: number } | null>(null)
+  const [selectionRect, setSelectionRect] = React.useState<{ x: number; y: number; width: number; height: number } | null>(null)
+
   // Debounce-save highlights whenever they change (after initial load)
   React.useEffect(() => {
     if (!hasLoadedHighlightsRef.current) return
@@ -249,6 +286,22 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       }
     }
   }, [projectId, fileName, rphHighlights])
+  
+  // Allow quitting camera mode with Escape
+  React.useEffect(() => {
+    function onEsc(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      if (tool === 'camera' || selectionRect || pendingScreenshot) {
+        try { e.preventDefault() } catch {}
+        setPendingScreenshot(null)
+        setSelectionRect(null)
+        selectionAnchorRef.current = null
+        setTool('highlighter')
+      }
+    }
+    window.addEventListener('keydown', onEsc)
+    return () => { window.removeEventListener('keydown', onEsc) }
+  }, [tool, selectionRect, pendingScreenshot])
   
   // Helper: find pdf.js page element and scroll viewer (pdf.js container) to it
   function scrollViewerToPage(pageNum: number): boolean {
@@ -344,7 +397,28 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     tick()
   }
 
-  return (
+  // Determine pdf.js page number at a given window/client point
+  function getPageNumberAtClientPoint(clientX: number, clientY: number): number | undefined {
+    try {
+      const pdfContainer = getPdfJsContainer()
+      const root: ParentNode = pdfContainer || viewerRef.current || document
+      const pages = root.querySelectorAll('.page') as NodeListOf<HTMLElement>
+      for (let i = 0; i < pages.length; i++) {
+        const p = pages[i]
+        const r = p.getBoundingClientRect()
+        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+          const val = p.getAttribute('data-page-number')
+          if (val) {
+            const n = parseInt(val, 10)
+            if (!Number.isNaN(n)) return n
+          }
+        }
+      }
+    } catch {}
+    return undefined
+  }
+
+  return (<>
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <div className="text-base text-gray-800 truncate max-w-[70%]" title={fileName}>{fileName}</div>
@@ -410,45 +484,61 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   }}
                   enableAreaSelection={(event: any) => false}
                   onSelectionFinished={(position: any, content: any, hideTip: () => void) => {
-                    // Show a minimal confirmation so user explicitly creates a highlight
+                    if (tool !== 'highlighter') return null
                     return (
-                      <div className="rounded-md bg-white border border-gray-300 shadow-sm p-2 flex items-center gap-2">
-                        <button
-                          className="px-2 py-0.5 text-xs rounded bg-black text-white hover:opacity-90"
-                          onClick={() => {
-                            const id = generateId()
-                            const comment = { text: content?.text || '', emoji: '' }
-                            console.log('[PDF] add highlight', { id, position, content })
-                            setRphHighlights((prev) => {
-                              const next = [...prev, { id, position, content, comment }]
-                              // Save immediately to avoid losing changes if the view is closed quickly
-                              saveHighlightsNow(next)
-                              return next
-                            })
-                            hideTip()
-                          }}
-                        >
-                          Add highlight
-                        </button>
-                        <button
-                          className="px-2 py-0.5 text-xs rounded border border-gray-300 hover:bg-gray-50"
-                          onClick={() => {
-                            console.log('[PDF] cancel add highlight')
-                            hideTip()
-                          }}
-                        >
-                          Cancel
-                        </button>
+                      <div className="px-[4px] py-0.5 shadow-lg border border-white/10 bg-black/40 backdrop-blur-md rounded-[14px]">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="h-7 w-7 flex items-center justify-center hover:opacity-90 active:scale-[0.98] transition"
+                            title="Add highlight"
+                            aria-label="Add highlight"
+                            onClick={() => {
+                              const id = generateId()
+                              const comment = { text: '', emoji: '' }
+                              console.log('[PDF] add highlight', { id, position, content })
+                              setRphHighlights((prev) => {
+                                const next = [...prev, { id, position, content, comment }]
+                                saveHighlightsNow(next)
+                                return next
+                              })
+                              hideTip()
+                            }}
+                          >
+                            <img src={checkIcon} alt="" className="w-4 h-4 invert" />
+                          </button>
+                          <button
+                            type="button"
+                            className="h-7 w-7 flex items-center justify-center hover:opacity-90 active:scale-[0.98] transition"
+                            title="Copy text"
+                            aria-label="Copy text"
+                            onClick={() => {
+                              try {
+                                const text = (content && content.text) ? String(content.text) : ''
+                                if (text && text.trim().length > 0) {
+                                  navigator.clipboard?.writeText(text).catch(() => {})
+                                }
+                              } catch {}
+                              hideTip()
+                            }}
+                          >
+                            <img src={filesCopyIcon} alt="" className="w-4 h-4 invert" />
+                          </button>
+                        </div>
                       </div>
                     )
                   }}
                   highlightTransform={(highlight: any, _index: number, _setTip: any, _hideTip: any, _viewportToScaled: any, _screenshot: any, isScrolledTo: boolean) => (
-                    <div key={highlight.id} data-hl-id={highlight.id}>
-                      <Highlight position={highlight.position} isScrolledTo={isScrolledTo} comment={highlight.comment} />
-                      {isScrolledTo ? <div style={{ display: 'none' }} data-hl-scrolled-flag={highlight.id} /> : null}
-                    </div>
+                    highlight?.kind === 'screenshot' ? (
+                      <div key={highlight.id} data-hl-id={highlight.id} />
+                    ) : (
+                      <div key={highlight.id} data-hl-id={highlight.id}>
+                        <Highlight position={highlight.position} isScrolledTo={isScrolledTo} comment={highlight.comment} />
+                        {isScrolledTo ? <div style={{ display: 'none' }} data-hl-scrolled-flag={highlight.id} /> : null}
+                      </div>
+                    )
                   )}
-                  highlights={rphHighlights}
+                  highlights={overlayHighlights}
                 />
                 )
               }}
@@ -460,6 +550,133 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">Loading PDF…</div>
           )}
+          {/* Selection rectangle overlay (window-only capture) */}
+          {(tool === 'camera' || !!pendingScreenshot) && !isCapturing && (
+            <div
+              className="absolute inset-0 z-20 cursor-crosshair"
+              onMouseDown={(e) => {
+                if (pendingScreenshot) return
+                // Only start selection within this left pane
+                const host = e.currentTarget as HTMLDivElement
+                const rect = host.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const y = e.clientY - rect.top
+                selectionAnchorRef.current = { x, y }
+                setSelectionRect({ x, y, width: 0, height: 0 })
+              }}
+              onMouseMove={(e) => {
+                if (pendingScreenshot) return
+                if (!selectionAnchorRef.current) return
+                const host = e.currentTarget as HTMLDivElement
+                const rect = host.getBoundingClientRect()
+                const currX = e.clientX - rect.left
+                const currY = e.clientY - rect.top
+                const start = selectionAnchorRef.current
+                const x = Math.min(start.x, currX)
+                const y = Math.min(start.y, currY)
+                const width = Math.abs(currX - start.x)
+                const height = Math.abs(currY - start.y)
+                setSelectionRect({ x, y, width, height })
+              }}
+              onMouseUp={async (e) => {
+                if (pendingScreenshot) return
+                if (!selectionRect || selectionRect.width < 2 || selectionRect.height < 2) {
+                  setSelectionRect(null)
+                  selectionAnchorRef.current = null
+                  return
+                }
+                // Convert rect (in this pane) into window coordinates for capturePage
+                const pane = e.currentTarget as HTMLDivElement
+                const paneRect = pane.getBoundingClientRect()
+                const xInWindow = Math.floor(paneRect.left + selectionRect.x)
+                const yInWindow = Math.floor(paneRect.top + selectionRect.y)
+                const w = Math.floor(selectionRect.width)
+                const h = Math.floor(selectionRect.height)
+                const api = (window as any).api
+                // Hide overlay before capture to avoid tint/outline in image
+                setIsCapturing(true)
+                await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+                const res: { ok: boolean; dataUrl?: string } | undefined = await api?.screenshots?.captureRect?.({ x: xInWindow, y: yInWindow, width: w, height: h })
+                if (res && res.ok && res.dataUrl) {
+                  setPendingScreenshot({ dataUrl: res.dataUrl })
+                } else {
+                  // reset on failure
+                  setSelectionRect(null)
+                  selectionAnchorRef.current = null
+                }
+                setIsCapturing(false)
+              }}
+            >
+              {selectionRect ? (
+                <div
+                  className="absolute border-2 border-gray-300 bg-gray-500/20"
+                  style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }}
+                />
+              ) : null}
+              {pendingScreenshot && selectionRect ? (
+                <div
+                  className="absolute -translate-x-1/2"
+                  style={{ left: selectionRect.x + (selectionRect.width / 2), top: selectionRect.y + selectionRect.height + 8 }}
+                >
+                  <div className="px-[4px] py-0.5 shadow-lg border border-white/10 bg-black/40 backdrop-blur-md rounded-[14px]">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        className="h-7 w-7 flex items-center justify-center hover:opacity-90 active:scale-[0.98] transition"
+                        title="Approve"
+                        aria-label="Approve"
+                        onClick={() => {
+                          const snap = pendingScreenshot
+                          const rect = selectionRect
+                          if (!snap || !rect) return
+                          const id = generateId()
+                          // Compute page at the center of the selection in window coords
+                          let pageNumber: number | undefined
+                          try {
+                            const host = viewerRef.current as HTMLDivElement | null
+                            if (host) {
+                              const hostRect = host.getBoundingClientRect()
+                              const cx = hostRect.left + rect.x + (rect.width / 2)
+                              const cy = hostRect.top + rect.y + (rect.height / 2)
+                              pageNumber = getPageNumberAtClientPoint(cx, cy)
+                            }
+                          } catch {}
+                          const item = { id, kind: 'screenshot', screenshot: { dataUrl: snap.dataUrl, pageNumber }, comment: { text: '', emoji: '' } }
+                          setRphHighlights((prev) => {
+                            const next = [...prev, item]
+                            saveHighlightsNow(next)
+                            return next
+                          })
+                          setPendingScreenshot(null)
+                          setSelectionRect(null)
+                          selectionAnchorRef.current = null
+                          setTool('highlighter')
+                        }}
+                      >
+                        <img src={checkIcon} alt="" className="w-4 h-4 invert" />
+                      </button>
+                      <button
+                        type="button"
+                        className="h-7 w-7 flex items-center justify-center hover:opacity-90 active:scale-[0.98] transition"
+                        title="Cancel"
+                        aria-label="Cancel"
+                        onClick={() => {
+                          setPendingScreenshot(null)
+                          setSelectionRect(null)
+                          selectionAnchorRef.current = null
+                          setTool('highlighter')
+                        }}
+                      >
+                        <img src={xIcon} alt="" className="w-4 h-4 invert" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+          {/* Bottom toolbar overlay */}
+          <PdfToolbar active={tool} onChangeActive={setTool} />
         </div>
         <div className="w-1/2 h-full min-w-0">
           <SplitHighlights
@@ -486,10 +703,18 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
               console.log('[PDF] delete highlight', id)
               setRphHighlights((prev) => prev.filter((h) => h.id !== id))
             }}
+            onChangeComment={(id, text) => {
+              setRphHighlights((prev) => prev.map((h) => h.id === id ? { ...h, comment: { ...(h.comment || {}), text } } : h))
+            }}
+            onJumpToPage={(page) => {
+              // Scroll the viewer to the given page number
+              scrollViewerToPage(page)
+            }}
           />
         </div>
       </div>
     </div>
+    </>
   )
 }
 

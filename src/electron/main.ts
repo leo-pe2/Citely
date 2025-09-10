@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, dialog, Menu, MenuItemConstructorOptions } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 
@@ -229,11 +230,37 @@ app.on('ready', () => {
                 : path.join(app.getAppPath(), 'desktopIcon.png') }
             : {}),
     });
+
+    // Application menu to enable native shortcuts like Ctrl+C/Ctrl+V on Windows/Linux
+    try {
+        const template: MenuItemConstructorOptions[] = [];
+        if (process.platform === 'darwin') {
+            template.push({ role: 'appMenu' as const });
+        }
+        template.push(
+            { role: 'fileMenu' as const },
+            { role: 'editMenu' as const },
+            { role: 'viewMenu' as const },
+            { role: 'windowMenu' as const },
+        );
+        const menu = Menu.buildFromTemplate(template);
+        Menu.setApplicationMenu(menu);
+    } catch {}
     if (isDev) {
         mainWindow.loadURL('http://localhost:5123');
     } else {
         mainWindow.loadFile(path.join(app.getAppPath() + '/dist-react/index.html'));
 
+    }
+    // Initialize electron-screenshots instance
+    let screenshots: any | null = null;
+    try {
+        const require = createRequire(import.meta.url);
+        const Screenshots = require('electron-screenshots');
+        screenshots = new Screenshots();
+    } catch (e) {
+        // Failed to initialize screenshots tool; IPC will return an error
+        screenshots = null;
     }
     // IPC handlers
     ipcMain.handle('projects:list', async () => {
@@ -253,6 +280,33 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:items:list', async (_event, projectId: string) => {
         return listProjectItems(projectId);
+    });
+    ipcMain.handle('projects:item:delete', async (_event, absolutePath: string) => {
+        const root = await ensureProjectsRoot();
+        const normalized = path.normalize(absolutePath);
+        if (!normalized.startsWith(root)) {
+            throw new Error('Access denied');
+        }
+        try {
+            await fs.rm(normalized, { force: true });
+        } catch {}
+        return { ok: true } as const;
+    });
+    ipcMain.handle('projects:item:delete-all', async (_event, projectId: string, pdfFileName: string, absolutePath: string) => {
+        const root = await ensureProjectsRoot();
+        const normalized = path.normalize(absolutePath);
+        if (!normalized.startsWith(root)) {
+            throw new Error('Access denied');
+        }
+        try {
+            await fs.rm(normalized, { force: true });
+        } catch {}
+        try {
+            const projectDir = path.join(root, projectId);
+            const hlFile = path.join(projectDir, 'highlights', `${pdfFileName}.json`);
+            await fs.rm(hlFile, { force: true });
+        } catch {}
+        return { ok: true } as const;
     });
     ipcMain.handle('projects:kanban:get', async (_event, projectId: string) => {
         return readKanbanStatuses(projectId);
@@ -276,5 +330,51 @@ app.on('ready', () => {
         }
         const data = await fs.readFile(normalized);
         return data.toString('base64');
+    });
+    // Capture a rectangle within the current app window only
+    ipcMain.handle('screenshot:capture-rect', async (_event, rect: { x: number; y: number; width: number; height: number }) => {
+        try {
+            const win = BrowserWindow.getFocusedWindow();
+            if (!win) return { ok: false as const, error: 'No focused window' };
+            // Guard invalid rect
+            const x = Math.max(0, Math.floor(rect?.x ?? 0));
+            const y = Math.max(0, Math.floor(rect?.y ?? 0));
+            const width = Math.max(1, Math.floor(rect?.width ?? 1));
+            const height = Math.max(1, Math.floor(rect?.height ?? 1));
+            const image = await win.capturePage({ x, y, width, height });
+            const base64 = image.toPNG().toString('base64');
+            return { ok: true as const, dataUrl: `data:image/png;base64,${base64}`, rect: { x, y, width, height } };
+        } catch (e) {
+            return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+        }
+    });
+    // Screenshots IPC
+    ipcMain.handle('screenshot:capture', async () => {
+        if (!screenshots) {
+            return { ok: false as const, error: 'Screenshots unavailable' };
+        }
+        try {
+            screenshots.startCapture();
+            const result: any = await new Promise((resolve) => {
+                const onOk = (_e: unknown, buffer: Buffer, bounds: unknown) => {
+                    try {
+                        const base64 = Buffer.from(buffer).toString('base64');
+                        resolve({ ok: true, dataUrl: `data:image/png;base64,${base64}`, bounds });
+                    } catch {
+                        resolve({ ok: false });
+                    }
+                };
+                const onCancel = () => resolve({ ok: false });
+                try {
+                    screenshots.once('ok', onOk);
+                    screenshots.once('cancel', onCancel);
+                } catch {
+                    resolve({ ok: false });
+                }
+            });
+            return result;
+        } catch (e) {
+            return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+        }
     });
 });

@@ -3,6 +3,7 @@ import { DndContext, DragOverlay, PointerSensor, closestCenter, useSensor, useSe
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import penIcon from '../assets/pen.svg'
+import trashIcon from '../assets/trash.svg'
 import openIcon from '../assets/square-arrow-out-up-right.svg'
 
 type AddedItemProps = {
@@ -23,6 +24,19 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   const [overStatus, setOverStatus] = useState<ItemStatus | null>(null)
   const [saveDebounce, setSaveDebounce] = useState<number | null>(null)
   const nodeRefMap = useRef<Record<string, HTMLElement | null>>({})
+  const [openEditorForPath, setOpenEditorForPath] = useState<string | null>(null)
+  const editorRef = useRef<HTMLDivElement | null>(null)
+  const inputRefMap = useRef<Record<string, HTMLInputElement | null>>({})
+  const [itemOverrides, setItemOverrides] = useState<Record<string, { displayName?: string }>>(() => {
+    try {
+      const raw = localStorage.getItem('item-overrides')
+      return raw ? (JSON.parse(raw) as Record<string, { displayName?: string }>) : {}
+    } catch {
+      return {}
+    }
+  })
+  const [editorDraft, setEditorDraft] = useState<Record<string, string>>({})
+  const [confirmingDelete, setConfirmingDelete] = useState<{ path: string; fileName: string } | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -161,6 +175,48 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     setOverStatus(null)
   }
 
+  function writeItemOverrides(next: Record<string, { displayName?: string }>) {
+    localStorage.setItem('item-overrides', JSON.stringify(next))
+    setItemOverrides(next)
+  }
+
+  function commitDisplayName(path: string) {
+    const val = (editorDraft[path] ?? '').trim()
+    const next = { ...itemOverrides }
+    if (val.length > 0) {
+      next[path] = { displayName: val }
+    } else {
+      delete next[path]
+    }
+    writeItemOverrides(next)
+  }
+
+  function getDisplayNameForPath(path: string, fileName: string): string {
+    const o = itemOverrides[path]
+    const name = (o?.displayName ?? '').trim()
+    return name.length > 0 ? name : fileName
+  }
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!openEditorForPath) return
+      const t = e.target as Node
+      if (editorRef.current && !editorRef.current.contains(t)) {
+        setOpenEditorForPath(null)
+      }
+    }
+    document.addEventListener('click', onDocClick)
+    function onKey(e: KeyboardEvent) {
+      if (!openEditorForPath) return
+      if (e.key === 'Escape') setOpenEditorForPath(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [openEditorForPath])
+
   const todoItems = items.filter((it) => (pathToStatus[it.path] ?? 'todo') === 'todo')
   const ongoingItems = items.filter((it) => pathToStatus[it.path] === 'ongoing')
   const underReviewItems = items.filter((it) => pathToStatus[it.path] === 'underReview')
@@ -171,7 +227,8 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   }
 
   function DraggableCard({ it, bgClass }: { it: ProjectItem; bgClass: string }) {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: it.path })
+    const isEditorOpen = openEditorForPath === it.path
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: it.path, disabled: isEditorOpen })
     const style: React.CSSProperties = {
       // Hide original element while dragging since we use DragOverlay
       transform: isDragging ? undefined : (transform ? CSS.Transform.toString(transform) : undefined),
@@ -183,14 +240,14 @@ export default function AddedItem({ projectId }: AddedItemProps) {
           setNodeRef(el)
           nodeRefMap.current[it.path] = el
         }}
-        {...attributes}
-        {...listeners}
+        {...(isEditorOpen ? {} : attributes)}
+        {...(isEditorOpen ? {} : listeners)}
         className={`relative w-full h-[150px] rounded-xl overflow-hidden cursor-move ${bgClass} transition-colors duration-200 ease-out group`}
         style={{ ...style }}
       >
         <div className="absolute left-3 right-3 top-4 flex items-center gap-2">
-          <div className="file-title text-sm text-gray-800 truncate w-1/2">{it.fileName}</div>
-          <div className="flex items-center gap-1 ml-auto opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
+          <div className="file-title text-sm text-gray-800 truncate w-1/2">{getDisplayNameForPath(it.path, it.fileName)}</div>
+          <div className={`flex items-center gap-1 ml-auto transition-opacity duration-150 ${isEditorOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'}` }>
             <button
               type="button"
               aria-label="Edit"
@@ -198,6 +255,18 @@ export default function AddedItem({ projectId }: AddedItemProps) {
               onClick={(e) => {
                 e.stopPropagation()
                 e.preventDefault()
+                setOpenEditorForPath((prev) => {
+                  const nextOpen = prev === it.path ? null : it.path
+                  if (nextOpen === it.path) {
+                    setEditorDraft((prevDraft) => ({ ...prevDraft, [it.path]: itemOverrides[it.path]?.displayName ?? '' }))
+                    // Focus input on next tick
+                    setTimeout(() => {
+                      inputRefMap.current[it.path]?.focus()
+                      inputRefMap.current[it.path]?.select()
+                    }, 0)
+                  }
+                  return nextOpen
+                })
               }}
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
@@ -228,6 +297,59 @@ export default function AddedItem({ projectId }: AddedItemProps) {
             </button>
           </div>
         </div>
+        {isEditorOpen ? (
+          <div
+            ref={editorRef}
+            className="absolute right-2 top-12 bg-white/80 backdrop-blur-md border border-white/10 rounded-lg shadow-lg w-[240px] p-2 z-10"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <input
+                className="flex-1 rounded border border-black/20 bg-white/5 text-black placeholder-black/50 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-white/20"
+                value={editorDraft[it.path] ?? ''}
+                placeholder="Display name"
+                autoFocus
+                onChange={(e) => {
+                  const val = e.target.value
+                  setEditorDraft((prev) => ({ ...prev, [it.path]: val }))
+                }}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') {
+                    commitDisplayName(it.path)
+                    setOpenEditorForPath(null)
+                  } else if (e.key === 'Escape') {
+                    setEditorDraft((prev) => ({ ...prev, [it.path]: itemOverrides[it.path]?.displayName ?? '' }))
+                    setOpenEditorForPath(null)
+                  }
+                }}
+                onBlur={(e) => {
+                  const next = e.relatedTarget as Node | null
+                  if (next && editorRef.current && editorRef.current.contains(next)) {
+                    return
+                  }
+                  commitDisplayName(it.path)
+                }}
+                ref={(el) => { inputRefMap.current[it.path] = el }}
+              />
+              <button
+                type="button"
+                className="h-8 w-8 flex items-center justify-center rounded hover:bg-gray-500/10 active:scale-[0.98] transition"
+                onMouseDown={(ev) => {
+                  ev.preventDefault()
+                  ev.stopPropagation()
+                  setConfirmingDelete({ path: it.path, fileName: it.fileName })
+                }}
+                aria-label="Delete PDF from project"
+              >
+                <img src={trashIcon} alt="" className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -353,13 +475,62 @@ export default function AddedItem({ projectId }: AddedItemProps) {
                 }}
               >
                 <div className="file-title text-sm text-gray-800 truncate" style={{ width: activeTitleWidth || undefined }}>
-                  {items.find((it) => it.path === activePath)?.fileName || ''}
+                  {(() => {
+                    const it = items.find((it) => it.path === activePath)
+                    return it ? getDisplayNameForPath(it.path, it.fileName) : ''
+                  })()}
                 </div>
               </div>
             </div>
           ) : null}
         </DragOverlay>
       </DndContext>
+      {confirmingDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmingDelete(null)} />
+          <div className="relative z-10 w-[420px] rounded-xl border border-white/10 bg-white/80 backdrop-blur-md shadow-2xl p-5">
+            <div className="text-lg font-medium text-gray-900 mb-1">Delete file and related data?</div>
+            <div className="text-sm text-gray-700 mb-4">This will delete the PDF and its highlights. This action cannot be undone.</div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                className="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-50"
+                onClick={() => setConfirmingDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-1.5 text-sm rounded bg-black text-white hover:opacity-90"
+                onClick={async () => {
+                  const target = confirmingDelete
+                  if (!target) return
+                  try {
+                    const api = (window as unknown as { api?: { projects: { items?: { deleteAll?: (projectId: string, pdfFileName: string, absolutePath: string) => Promise<{ ok: true }> } } } }).api
+                    await api?.projects.items?.deleteAll?.(projectId, target.fileName, target.path)
+                  } finally {
+                    // Clear local override and kanban status
+                    setItemOverrides((prev) => {
+                      const next = { ...prev }
+                      delete next[target.path]
+                      localStorage.setItem('item-overrides', JSON.stringify(next))
+                      return next
+                    })
+                    setPathToStatus((prev) => {
+                      const next = { ...prev }
+                      delete next[target.path]
+                      return next
+                    })
+                    setConfirmingDelete(null)
+                    setOpenEditorForPath(null)
+                    fetchItems()
+                  }
+                }}
+              >
+                Delete everything
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

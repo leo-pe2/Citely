@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.invoke('projects:items:exists', projectId),
       list: (projectId: string): Promise<{ items: { fileName: string; path: string }[] }> =>
         ipcRenderer.invoke('projects:items:list', projectId),
+      delete: (absolutePath: string): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('projects:item:delete', absolutePath),
+      deleteAll: (projectId: string, pdfFileName: string, absolutePath: string): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('projects:item:delete-all', projectId, pdfFileName, absolutePath),
     },
     kanban: {
       get: (projectId: string): Promise<Record<string, string>> =>
@@ -35,6 +39,12 @@ contextBridge.exposeInMainWorld('api', {
   files: {
     readFileBase64: (absolutePath: string): Promise<string> =>
       ipcRenderer.invoke('file:read-base64', absolutePath),
+  },
+  screenshots: {
+    capture: (): Promise<{ ok: boolean; dataUrl?: string; bounds?: unknown; error?: string }> =>
+      ipcRenderer.invoke('screenshot:capture'),
+    captureRect: (rect: { x: number; y: number; width: number; height: number }): Promise<{ ok: boolean; dataUrl?: string; rect?: { x: number; y: number; width: number; height: number }; error?: string }> =>
+      ipcRenderer.invoke('screenshot:capture-rect', rect),
   },
 })
 
