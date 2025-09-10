@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld('api', {
     readFileBase64: (absolutePath: string): Promise<string> =>
       ipcRenderer.invoke('file:read-base64', absolutePath),
   },
+  screenshots: {
+    capture: (): Promise<{ ok: boolean; dataUrl?: string; bounds?: unknown; error?: string }> =>
+      ipcRenderer.invoke('screenshot:capture'),
+    captureRect: (rect: { x: number; y: number; width: number; height: number }): Promise<{ ok: boolean; dataUrl?: string; rect?: { x: number; y: number; width: number; height: number }; error?: string }> =>
+      ipcRenderer.invoke('screenshot:capture-rect', rect),
+  },
 })
 
 

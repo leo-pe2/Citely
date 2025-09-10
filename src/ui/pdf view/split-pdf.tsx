@@ -24,6 +24,8 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const resizeRaf = React.useRef<number | null>(null)
   const [rphHighlights, setRphHighlights] = React.useState<any[]>([])
   const [tool, setTool] = React.useState<'highlighter' | 'camera'>('highlighter')
+  const [pendingScreenshot, setPendingScreenshot] = React.useState<{ dataUrl: string } | null>(null)
+  const overlayHighlights = React.useMemo(() => rphHighlights.filter((h) => h && h.kind !== 'screenshot'), [rphHighlights])
   const scrollToHighlightRef = React.useRef<((h: any) => void) | null>(null)
   const hasLoadedHighlightsRef = React.useRef<boolean>(false)
   const saveDebounceRef = React.useRef<number | null>(null)
@@ -237,6 +239,10 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     }
   }, [projectId, fileName])
 
+  // In-app selection overlay state (for window-only capture)
+  const selectionAnchorRef = React.useRef<{ x: number; y: number } | null>(null)
+  const [selectionRect, setSelectionRect] = React.useState<{ x: number; y: number; width: number; height: number } | null>(null)
+
   // Debounce-save highlights whenever they change (after initial load)
   React.useEffect(() => {
     if (!hasLoadedHighlightsRef.current) return
@@ -373,7 +379,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     tick()
   }
 
-  return (
+  return (<>
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <div className="text-base text-gray-800 truncate max-w-[70%]" title={fileName}>{fileName}</div>
@@ -437,7 +443,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                       pendingJumpRef.current = null
                     }
                   }}
-                  enableAreaSelection={(event: any) => tool === 'camera'}
+                  enableAreaSelection={(event: any) => tool === 'highlighter'}
                   onSelectionFinished={(position: any, content: any, hideTip: () => void) => {
                     if (tool !== 'highlighter') return null
                     return (
@@ -484,12 +490,16 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                     )
                   }}
                   highlightTransform={(highlight: any, _index: number, _setTip: any, _hideTip: any, _viewportToScaled: any, _screenshot: any, isScrolledTo: boolean) => (
-                    <div key={highlight.id} data-hl-id={highlight.id}>
-                      <Highlight position={highlight.position} isScrolledTo={isScrolledTo} comment={highlight.comment} />
-                      {isScrolledTo ? <div style={{ display: 'none' }} data-hl-scrolled-flag={highlight.id} /> : null}
-                    </div>
+                    highlight?.kind === 'screenshot' ? (
+                      <div key={highlight.id} data-hl-id={highlight.id} />
+                    ) : (
+                      <div key={highlight.id} data-hl-id={highlight.id}>
+                        <Highlight position={highlight.position} isScrolledTo={isScrolledTo} comment={highlight.comment} />
+                        {isScrolledTo ? <div style={{ display: 'none' }} data-hl-scrolled-flag={highlight.id} /> : null}
+                      </div>
+                    )
                   )}
-                  highlights={rphHighlights}
+                  highlights={overlayHighlights}
                 />
                 )
               }}
@@ -500,6 +510,66 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">Loading PDF…</div>
+          )}
+          {/* Selection rectangle overlay (window-only capture) */}
+          {tool === 'camera' && (
+            <div
+              className="absolute inset-0 z-20 cursor-crosshair"
+              onMouseDown={(e) => {
+                // Only start selection within this left pane
+                const host = e.currentTarget as HTMLDivElement
+                const rect = host.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const y = e.clientY - rect.top
+                selectionAnchorRef.current = { x, y }
+                setSelectionRect({ x, y, width: 0, height: 0 })
+              }}
+              onMouseMove={(e) => {
+                if (!selectionAnchorRef.current) return
+                const host = e.currentTarget as HTMLDivElement
+                const rect = host.getBoundingClientRect()
+                const currX = e.clientX - rect.left
+                const currY = e.clientY - rect.top
+                const start = selectionAnchorRef.current
+                const x = Math.min(start.x, currX)
+                const y = Math.min(start.y, currY)
+                const width = Math.abs(currX - start.x)
+                const height = Math.abs(currY - start.y)
+                setSelectionRect({ x, y, width, height })
+              }}
+              onMouseUp={async (e) => {
+                try {
+                  if (!selectionRect || selectionRect.width < 2 || selectionRect.height < 2) {
+                    setSelectionRect(null)
+                    selectionAnchorRef.current = null
+                    return
+                  }
+                  // Convert rect (in this pane) into window coordinates for capturePage
+                  const pane = e.currentTarget as HTMLDivElement
+                  const paneRect = pane.getBoundingClientRect()
+                  const xInWindow = Math.floor(paneRect.left + selectionRect.x)
+                  const yInWindow = Math.floor(paneRect.top + selectionRect.y)
+                  const w = Math.floor(selectionRect.width)
+                  const h = Math.floor(selectionRect.height)
+                  const api = (window as any).api
+                  const res: { ok: boolean; dataUrl?: string } | undefined = await api?.screenshots?.captureRect?.({ x: xInWindow, y: yInWindow, width: w, height: h })
+                  if (res && res.ok && res.dataUrl) {
+                    setPendingScreenshot({ dataUrl: res.dataUrl })
+                  }
+                } finally {
+                  setSelectionRect(null)
+                  selectionAnchorRef.current = null
+                  setTool('highlighter')
+                }
+              }}
+            >
+              {selectionRect ? (
+                <div
+                  className="absolute border-2 border-white/80 bg-black/20"
+                  style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }}
+                />
+              ) : null}
+            </div>
           )}
           {/* Bottom toolbar overlay */}
           <PdfToolbar active={tool} onChangeActive={setTool} />
@@ -536,6 +606,47 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         </div>
       </div>
     </div>
+      {/* Screenshot approve/reject modal */}
+      {pendingScreenshot ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setPendingScreenshot(null)} />
+          <div className="relative z-10 max-w-[80vw] max-h-[80vh] w-auto bg-white rounded-xl shadow-2xl border border-white/10 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <div className="text-sm font-medium text-gray-800">Screenshot preview</div>
+              <button className="rounded border border-gray-300 px-2 py-1 text-xs hover:border-black" onClick={() => setPendingScreenshot(null)}>Close</button>
+            </div>
+            <div className="p-3 overflow-auto" style={{ maxHeight: 'calc(80vh - 100px)' }}>
+              <img src={pendingScreenshot!.dataUrl} alt="Screenshot" className="max-w-full h-auto rounded" />
+            </div>
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-200">
+              <button
+                className="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-50"
+                onClick={() => setPendingScreenshot(null)}
+              >
+                Reject
+              </button>
+              <button
+                className="px-3 py-1.5 text-sm rounded bg-black text-white hover:opacity-90"
+                onClick={() => {
+                  const snap = pendingScreenshot
+                  if (!snap) return
+                  const id = generateId()
+                  const item = { id, kind: 'screenshot', screenshot: { dataUrl: snap.dataUrl }, comment: { text: '', emoji: '' } }
+                  setRphHighlights((prev) => {
+                    const next = [...prev, item]
+                    saveHighlightsNow(next)
+                    return next
+                  })
+                  setPendingScreenshot(null)
+                }}
+              >
+                Approve & add
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }
 

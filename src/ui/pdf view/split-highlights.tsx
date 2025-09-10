@@ -49,6 +49,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
         <>
           <ol className="space-y-4">
             {orderedHighlights.map((h, idx) => {
+              const isScreenshot = h?.kind === 'screenshot'
               const text = h?.content?.text || ''
               const pageNumber = getPageNumber(h)
               return (
@@ -61,13 +62,19 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                       </div>
                     </div>
                     <div className="col-[2] row-[1]">
-                      <button
-                        className="w-full text-left text-base text-gray-900 border border-gray-300 border-dashed rounded-md px-2 py-2 hover:bg-gray-50 inline-flex items-center"
-                        onClick={() => { console.log('[HL] click jump', h.id, 'page=', pageNumber); onJumpTo(h.id) }}
-                        title="Go to highlight"
-                      >
-                        {text || '—'}
-                      </button>
+                      {isScreenshot ? (
+                        <div className="w-full border border-gray-300 rounded-md overflow-hidden bg-white">
+                          <img src={h?.screenshot?.dataUrl} alt="Screenshot" className="w-full h-auto max-h-[280px] object-contain bg-gray-50" />
+                        </div>
+                      ) : (
+                        <button
+                          className="w-full text-left text-base text-gray-900 border border-gray-300 border-dashed rounded-md px-2 py-2 hover:bg-gray-50 inline-flex items-center"
+                          onClick={() => { console.log('[HL] click jump', h.id, 'page=', pageNumber); onJumpTo(h.id) }}
+                          title="Go to highlight"
+                        >
+                          {text || '—'}
+                        </button>
+                      )}
                     </div>
                     <div className="col-[1] row-[2] flex items-stretch justify-center">
                       <div className="w-px bg-gray-300 h-full" />
@@ -83,9 +90,15 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                     <div className="col-[2] row-[3]">
                       <div className="flex items-center text-sm text-gray-600">
                         <div className="flex-1">
-                          <span className="font-medium">Annotation</span>
-                          <span className="mx-1 text-gray-400">/</span>
-                          <span>Page {pageNumber ?? '—'}</span>
+                          {isScreenshot ? (
+                            <span className="font-medium">Screenshot</span>
+                          ) : (
+                            <>
+                              <span className="font-medium">Annotation</span>
+                              <span className="mx-1 text-gray-400">/</span>
+                              <span>Page {pageNumber ?? '—'}</span>
+                            </>
+                          )}
                         </div>
                         <button
                           type="button"
