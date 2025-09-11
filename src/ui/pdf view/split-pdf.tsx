@@ -36,7 +36,12 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const isHighlighterReadyRef = React.useRef<boolean>(false)
   const pendingJumpRef = React.useRef<{ id: string; page?: number } | null>(null)
   function getPageNumberFromHighlight(h: any): number | undefined {
-    if (!h || !h.position) return undefined
+    if (!h) return undefined
+    // Support screenshots stored with screenshot.pageNumber
+    if (h.kind === 'screenshot' && typeof h?.screenshot?.pageNumber === 'number') {
+      return h.screenshot.pageNumber
+    }
+    if (!h.position) return undefined
     if (typeof h.position.pageNumber === 'number') return h.position.pageNumber
     if (h.position.boundingRect && typeof h.position.boundingRect.pageNumber === 'number') return h.position.boundingRect.pageNumber
     if (Array.isArray(h.position.rects) && h.position.rects.length > 0 && typeof h.position.rects[0]?.pageNumber === 'number') {

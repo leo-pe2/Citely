@@ -10,7 +10,12 @@ type SplitHighlightsProps = {
 }
 
 function getPageNumber(h: any): number | undefined {
-  if (!h || !h.position) return undefined
+  if (!h) return undefined
+  // Support screenshots which store page number under screenshot.pageNumber
+  if (h.kind === 'screenshot' && typeof h?.screenshot?.pageNumber === 'number') {
+    return h.screenshot.pageNumber
+  }
+  if (!h.position) return undefined
   if (typeof h.position.pageNumber === 'number') return h.position.pageNumber
   if (h.position.boundingRect && typeof h.position.boundingRect.pageNumber === 'number') return h.position.boundingRect.pageNumber
   if (Array.isArray(h.position.rects) && h.position.rects.length > 0 && typeof h.position.rects[0]?.pageNumber === 'number') {
