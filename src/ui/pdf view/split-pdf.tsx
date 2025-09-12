@@ -2,6 +2,7 @@ import React from 'react'
 import SplitHighlights from './split-highlights'
 import { PdfLoader, PdfHighlighter, Highlight } from 'react-pdf-highlighter'
 import PdfToolbar from '../components/pdf-toolbar'
+import PdfZoomToolbar from '../components/pdf-zoom-toolbar'
 import checkIcon from '../assets/check.svg'
 import xIcon from '../assets/x.svg'
 import filesCopyIcon from '../assets/files_copy.svg'
@@ -35,6 +36,15 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const lastSavedSnapshotRef = React.useRef<string>("[]")
   const isHighlighterReadyRef = React.useRef<boolean>(false)
   const pendingJumpRef = React.useRef<{ id: string; page?: number } | null>(null)
+  const [zoom, setZoom] = React.useState<'auto' | number>('auto')
+  const pdfScaleValue = React.useMemo(() => (zoom === 'auto' ? 'page-fit' : zoom), [zoom])
+
+  // Trigger layout recalculation when zoom changes (pdf.js & overlay layers often listen to resize)
+  React.useEffect(() => {
+    try { window.dispatchEvent(new Event('resize')) } catch {}
+  }, [pdfScaleValue])
+
+  
   function getPageNumberFromHighlight(h: any): number | undefined {
     if (!h) return undefined
     // Support screenshots stored with screenshot.pageNumber
@@ -605,7 +615,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                 <PdfHighlighter
                   key={blobUrl || fileName}
                   pdfDocument={pdfDocument}
-                  pdfScaleValue="page-fit"
+                  pdfScaleValue={pdfScaleValue as any}
                   onScrollChange={() => { console.log('[PDF] PdfHighlighter onScrollChange') }}
                   scrollRef={(scrollTo: any) => {
                     console.log('[PDF] scrollRef set')
@@ -847,6 +857,25 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           )}
           {/* Bottom toolbar overlay */}
           <PdfToolbar active={tool} onChangeActive={setTool} />
+          {/* Zoom toolbar overlay (bottom-right) */}
+          <PdfZoomToolbar
+            value={zoom}
+            onZoomOut={() => {
+              setZoom((prev) => {
+                const current = typeof prev === 'number' ? prev : 1
+                const next = Math.max(0.5, Math.round((current - 0.2) * 100) / 100)
+                return next
+              })
+            }}
+            onAuto={() => setZoom('auto')}
+            onZoomIn={() => {
+              setZoom((prev) => {
+                const current = typeof prev === 'number' ? prev : 1
+                const next = Math.min(3, Math.round((current + 0.2) * 100) / 100)
+                return next
+              })
+            }}
+          />
         </div>
         <div className="w-1/2 h-full min-w-0">
           <SplitHighlights
