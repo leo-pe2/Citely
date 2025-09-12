@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import openIcon from '../assets/panel-right-open.svg'
 import closeIcon from '../assets/panel-right-close.svg'
 import folderPlusIcon from '../assets/sidebar/folder-plus.svg'
@@ -31,19 +31,7 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
   const OPEN_WIDTH = 256
   const CLOSED_WIDTH = 56
 
-  const listVariants = {
-    open: {
-      transition: { staggerChildren: 0.06, delayChildren: 0.02 },
-    },
-    closed: {
-      transition: { staggerChildren: 0.05, staggerDirection: -1 },
-    },
-  }
-
-  const itemVariants = {
-    open: { opacity: 1, y: 0, filter: 'blur(0px)' },
-    closed: { opacity: 0, y: -6, filter: 'blur(6px)' },
-  }
+  
 
   useEffect(() => {
     try {
@@ -141,18 +129,9 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
       <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-4 mt-0`}>
         {isOpen ? (
           <div className="flex-1 overflow-hidden">
-            <AnimatePresence initial={false} mode="wait">
-              <motion.div
-                key="sidebar-title"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.16, ease: 'easeOut' }}
-                className="text-sm font-medium truncate pl-0"
-              >
-                My Library
-              </motion.div>
-            </AnimatePresence>
+            <div className="text-sm font-medium truncate pl-0">
+              My Library
+            </div>
           </div>
         ) : null}
 
@@ -168,78 +147,50 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        <motion.nav
-          key="sidebar-content"
-          className="h-full overflow-auto"
-        >
-          <AnimatePresence initial={false} mode="wait">
-            {isOpen && (
-              <motion.div
-                key="sidebar-items"
-                initial="closed"
-                animate="open"
-                exit="closed"
-                variants={listVariants}
-              >
-                <motion.div
-                  variants={itemVariants}
-                  className="px-2 py-1.5 mb-0"
+        <div className="h-full overflow-auto">
+          {isOpen && (
+            <div>
+              <div className="px-2 py-1.5 mb-0">
+                <button
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
+                  onClick={() => setIsCreateOpen(true)}
                 >
-                  <button
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
-                    onClick={() => setIsCreateOpen(true)}
-                  >
-                    <img src={folderPlusIcon} alt="" className="h-4 w-4" />
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.16, ease: 'easeOut' }}
-                      className="whitespace-nowrap"
-                    >
-                      New Category
-                    </motion.span>
-                  </button>
-                </motion.div>
+                  <img src={folderPlusIcon} alt="" className="h-4 w-4" />
+                  <span className="whitespace-nowrap">New Category</span>
+                </button>
+              </div>
 
-                <motion.ul className="space-y-0.5 px-2 -mt-0.5">
-                  {projects.map((p) => (
-                    <motion.li key={p.id} variants={itemVariants}>
-                      <div className="rounded">
-                        <button
-                          className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
-                          onClick={() => selectCategory(p)}
-                        >
-                          <div
-                            role="button"
-                            className="h-4 w-4 cursor-pointer"
-                            onMouseEnter={() => setHoveredIconId(p.id)}
-                            onMouseLeave={() => setHoveredIconId(null)}
-                            dangerouslySetInnerHTML={{
-                              __html: normalizeSvg(
-                                hoveredIconId === p.id || selectedCategoryId === p.id
-                                  ? folderOpenIconRaw
-                                  : folderIconRaw
-                              ),
-                            }}
-                            style={{ color: overrides[p.id]?.color || '#000000', lineHeight: 0 }}
-                          />
-                          <motion.span
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.2, ease: 'easeOut' }}
-                            className="block truncate text-left"
-                          >
-                            {p.name}
-                          </motion.span>
-                        </button>
-                      </div>
-                    </motion.li>
-                  ))}
-                </motion.ul>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.nav>
+              <ul className="space-y-0.5 px-2 -mt-0.5">
+                {projects.map((p) => (
+                  <li key={p.id}>
+                    <div className="rounded">
+                      <button
+                        className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
+                        onClick={() => selectCategory(p)}
+                      >
+                        <div
+                          role="button"
+                          className="h-4 w-4 cursor-pointer"
+                          onMouseEnter={() => setHoveredIconId(p.id)}
+                          onMouseLeave={() => setHoveredIconId(null)}
+                          dangerouslySetInnerHTML={{
+                            __html: normalizeSvg(
+                              hoveredIconId === p.id || selectedCategoryId === p.id
+                                ? folderOpenIconRaw
+                                : folderIconRaw
+                            ),
+                          }}
+                          style={{ color: overrides[p.id]?.color || '#000000', lineHeight: 0 }}
+                        />
+                        <span className="block truncate text-left">{p.name}</span>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
       <CreateProjectModal
         isOpen={isCreateOpen}
