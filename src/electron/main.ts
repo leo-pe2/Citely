@@ -219,6 +219,14 @@ app.on('ready', () => {
         height: 900,
         minWidth: 1400,
         minHeight: 900,
+        title: '',
+        backgroundColor: '#ffffff',
+        ...(process.platform === 'darwin'
+            ? {
+                titleBarStyle: 'hidden' as const,
+                titleBarOverlay: { color: '#ffffff', symbolColor: '#000000', height: 40 },
+              }
+            : {}),
         webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,

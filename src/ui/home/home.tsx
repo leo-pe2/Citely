@@ -33,9 +33,10 @@ function Home() {
   }, [])
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden">
+    <div className="h-screen w-screen flex overflow-hidden bg-white">
+      <div className="fixed top-0 left-0 right-0 h-10 bg-white app-drag" />
       {!splitContext && <Sidebar onSelectCategory={(c) => setSelected(c)} />}
-      <main className="flex-1 min-w-0 w-full h-full min-h-0">
+      <main className="flex-1 min-w-0 w-full h-full min-h-0 pt-10">
         {splitContext ? (
           <SplitPdf
             onClose={() => setSplitContext(null)}

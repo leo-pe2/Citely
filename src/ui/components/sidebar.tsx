@@ -31,6 +31,20 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
   const OPEN_WIDTH = 256
   const CLOSED_WIDTH = 56
 
+  const listVariants = {
+    open: {
+      transition: { staggerChildren: 0.06, delayChildren: 0.02 },
+    },
+    closed: {
+      transition: { staggerChildren: 0.05, staggerDirection: -1 },
+    },
+  }
+
+  const itemVariants = {
+    open: { opacity: 1, y: 0, filter: 'blur(0px)' },
+    closed: { opacity: 0, y: -6, filter: 'blur(6px)' },
+  }
+
   useEffect(() => {
     try {
       localStorage.setItem('sidebar-open', isOpen ? 'true' : 'false')
@@ -122,7 +136,7 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
       initial={false}
       animate={{ width: isOpen ? OPEN_WIDTH : CLOSED_WIDTH }}
       transition={{ type: 'spring', stiffness: 300, damping: 26, mass: 0.4 }}
-      className={`min-h-screen border-r border-gray-200 bg-white flex flex-col pt-4`}
+      className={`min-h-screen border-r border-gray-200 bg-white flex flex-col pt-13.5`}
     >
       <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-4 mt-0`}>
         {isOpen ? (
@@ -134,7 +148,7 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.16, ease: 'easeOut' }}
-                className="text-sm font-medium truncate pl-2"
+                className="text-sm font-medium truncate pl-0"
               >
                 My Library
               </motion.div>
@@ -161,77 +175,68 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
           <AnimatePresence initial={false} mode="wait">
             {isOpen && (
               <motion.div
-                key="new-project"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.22, ease: 'easeInOut' }}
-                className="px-2 py-1.5 mb-0"
+                key="sidebar-items"
+                initial="closed"
+                animate="open"
+                exit="closed"
+                variants={listVariants}
               >
-                <button
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
-                  onClick={() => setIsCreateOpen(true)}
+                <motion.div
+                  variants={itemVariants}
+                  className="px-2 py-1.5 mb-0"
                 >
-                  <img src={folderPlusIcon} alt="" className="h-4 w-4" />
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.16, ease: 'easeOut' }}
-                    className="whitespace-nowrap"
+                  <button
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
+                    onClick={() => setIsCreateOpen(true)}
                   >
-                    New Category
-                  </motion.span>
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    <img src={folderPlusIcon} alt="" className="h-4 w-4" />
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.16, ease: 'easeOut' }}
+                      className="whitespace-nowrap"
+                    >
+                      New Category
+                    </motion.span>
+                  </button>
+                </motion.div>
 
-          <AnimatePresence initial={false} mode="wait">
-            {isOpen && (
-              <motion.ul
-                key="project-list"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.22, ease: 'easeInOut' }}
-                className="space-y-0.5 px-2 -mt-0.5"
-              >
-                {projects.map((p) => (
-                  <li key={p.id}>
-                    <div className="rounded">
-                      <button
-                        className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
-                        onClick={() => selectCategory(p)}
-                      >
-                        <div
-                          role="button"
-                          className="h-4 w-4 cursor-pointer"
-                          onMouseEnter={() => setHoveredIconId(p.id)}
-                          onMouseLeave={() => setHoveredIconId(null)}
-                          dangerouslySetInnerHTML={{
-                            __html: normalizeSvg(
-                              hoveredIconId === p.id || selectedCategoryId === p.id
-                                ? folderOpenIconRaw
-                                : folderIconRaw
-                            ),
-                          }}
-                          style={{ color: overrides[p.id]?.color || '#000000', lineHeight: 0 }}
-                        />
-                        <motion.span
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.2, ease: 'easeOut' }}
-                          className="block truncate text-left"
+                <motion.ul className="space-y-0.5 px-2 -mt-0.5">
+                  {projects.map((p) => (
+                    <motion.li key={p.id} variants={itemVariants}>
+                      <div className="rounded">
+                        <button
+                          className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
+                          onClick={() => selectCategory(p)}
                         >
-                          {p.name}
-                        </motion.span>
-                      </button>
-
-                      
-                    </div>
-                  </li>
-                ))}
-              </motion.ul>
+                          <div
+                            role="button"
+                            className="h-4 w-4 cursor-pointer"
+                            onMouseEnter={() => setHoveredIconId(p.id)}
+                            onMouseLeave={() => setHoveredIconId(null)}
+                            dangerouslySetInnerHTML={{
+                              __html: normalizeSvg(
+                                hoveredIconId === p.id || selectedCategoryId === p.id
+                                  ? folderOpenIconRaw
+                                  : folderIconRaw
+                              ),
+                            }}
+                            style={{ color: overrides[p.id]?.color || '#000000', lineHeight: 0 }}
+                          />
+                          <motion.span
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="block truncate text-left"
+                          >
+                            {p.name}
+                          </motion.span>
+                        </button>
+                      </div>
+                    </motion.li>
+                  ))}
+                </motion.ul>
+              </motion.div>
             )}
           </AnimatePresence>
         </motion.nav>
