@@ -26,6 +26,8 @@ function getPageNumber(h: any): number | undefined {
 
 export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChangeComment, onJumpToPage }: SplitHighlightsProps) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
+  const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const prevCountRef = React.useRef<number>(highlights?.length ?? 0)
 
   function getFirstSentence(input: string): string {
     if (!input) return ''
@@ -45,8 +47,21 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
     console.log('[HL] list render count=', orderedHighlights.length)
   }, [orderedHighlights])
 
+  React.useEffect(() => {
+    const currentCount = orderedHighlights.length
+    const prev = prevCountRef.current
+    prevCountRef.current = currentCount
+    if (currentCount > prev) {
+      const el = containerRef.current
+      if (el) {
+        // Scroll to bottom when new items are added
+        el.scrollTop = el.scrollHeight
+      }
+    }
+  }, [orderedHighlights])
+
   return (
-    <div className="w-full h-full overflow-y-auto p-4">
+    <div className="w-full h-full overflow-y-auto p-4" ref={containerRef}>
       {(!highlights || highlights.length === 0) ? (
         <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
           No highlights yet.
@@ -156,6 +171,12 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                           className="w-full px-2 py-2 rounded-md bg-gray-100 text-gray-900 placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black/10 overflow-hidden resize-none"
                           value={h?.comment?.text ?? ''}
                           onChange={(e) => onChangeComment(h.id, e.target.value)}
+                          onFocus={(e) => {
+                            try {
+                              const len = e.currentTarget.value.length
+                              e.currentTarget.setSelectionRange(len, len)
+                            } catch {}
+                          }}
                           onInput={(e) => {
                             const el = e.currentTarget
                             el.style.height = 'auto'

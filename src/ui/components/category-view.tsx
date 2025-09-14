@@ -170,7 +170,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
           </button>
           <div className="relative" ref={menuRef}>
             <button
-              className="w-8 h-8 rounded-full border-2 border-gray-300 hover:border-black flex items-center justify-center"
+              className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${menuOpen ? 'border-black' : 'border-gray-300 hover:border-black'}`}
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Edit category"
             >
@@ -178,7 +178,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
             </button>
 
             {menuOpen ? (
-              <div className="absolute right-0 top-full mt-2 bg-white/80 backdrop-blur-md border border-white/10 rounded-lg shadow-lg w-[300px] p-3 z-10">
+              <div className="absolute right-0 top-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl w-[300px] p-3 z-10">
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs text-black/70 mb-1">Project name</label>

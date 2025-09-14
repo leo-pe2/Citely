@@ -583,14 +583,14 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         <div className="text-base text-gray-800 truncate max-w-[70%]" title={fileName}>{fileName}</div>
         <div className="flex items-center gap-2">
           <button
-            className="rounded-md border border-gray-300 px-3 py-1 text-sm hover:border-black"
+            className="rounded-md px-3 py-1 text-sm bg-white border border-gray-200 hover:bg-gray-100 transition"
             onClick={handleExport}
             aria-label="Export highlights to PDF"
           >
-            Export PDF
+            Export
           </button>
           <button
-            className="rounded-md border border-gray-300 px-3 py-1 text-sm hover:border-black"
+            className="rounded-md px-3 py-1 text-sm bg-black text-white hover:opacity-80 transition"
             onClick={onClose}
             aria-label="Close split view"
           >
