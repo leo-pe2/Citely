@@ -84,7 +84,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                     </div>
                     <div className="col-[2] row-[1]">
                       {isScreenshot ? (
-                        <div className="inline-block border border-gray-300 rounded-md overflow-hidden bg-white max-w-full">
+                        <div className="inline-block border border-gray-300 rounded-[12px] overflow-hidden bg-white max-w-full">
                           <img
                             src={h?.screenshot?.dataUrl}
                             alt="Screenshot"
@@ -103,7 +103,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                         </div>
                       ) : (
                         <button
-                          className="w-full text-left text-base text-gray-900 border border-gray-300 border-dashed rounded-md px-2 py-2 hover:bg-gray-50 inline-flex items-center"
+                          className="w-full text-left text-base text-gray-900 border border-gray-300 border-dashed rounded-[12px] px-2 py-2 hover:bg-gray-50 inline-flex items-center"
                           onClick={() => { console.log('[HL] click jump', h.id, 'page=', pageNumber); onJumpTo(h.id) }}
                           title="Go to highlight"
                         >
@@ -168,7 +168,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                           rows={1}
                           autoFocus
                           placeholder="Your comment"
-                          className="w-full px-2 py-2 rounded-md bg-gray-100 text-gray-900 placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black/10 overflow-hidden resize-none"
+                          className="w-full px-2 py-2 rounded-[12px] bg-gray-100 text-gray-900 text-sm placeholder:text-sm placeholder-gray-400 focus:outline-none overflow-hidden resize-none"
                           value={h?.comment?.text ?? ''}
                           onChange={(e) => onChangeComment(h.id, e.target.value)}
                           onFocus={(e) => {
@@ -192,7 +192,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                         />
                       ) : (
                         <button
-                          className="w-full text-left px-2 py-2 rounded-md bg-gray-100 text-gray-900 border border-gray-200 hover:bg-gray-50"
+                          className="w-full text-left px-2 py-2 rounded-[12px] bg-gray-100 text-gray-900 text-sm"
                           onClick={() => setEditingId(h.id)}
                           title="Edit comment"
                         >
@@ -211,7 +211,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                               })()}
                             </>
                           ) : (
-                            <span className="text-gray-400">Your comment</span>
+                            <span className="text-gray-400 text-sm">Your comment</span>
                           )}
                         </button>
                       )}

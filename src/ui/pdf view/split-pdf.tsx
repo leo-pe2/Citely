@@ -104,10 +104,16 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       console.warn('[PDF] saveHighlightsNow failed', e)
     }
   }
+  function toArrayBuffer(u8: Uint8Array): ArrayBuffer {
+    const ab = new ArrayBuffer(u8.byteLength)
+    const view = new Uint8Array(ab)
+    view.set(u8)
+    return ab
+  }
   const blobUrl = React.useMemo(() => {
     if (!pdfData) return null
     try {
-      const url = URL.createObjectURL(new Blob([pdfData], { type: 'application/pdf' }))
+      const url = URL.createObjectURL(new Blob([toArrayBuffer(pdfData)], { type: 'application/pdf' }))
       console.log('[PDF] blobUrl created')
       return url
     } catch (e) {
@@ -390,13 +396,9 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       const pdfContainer = getPdfJsContainer()
       const hasPages = !!pdfContainer?.querySelector('.page')
       const hasLayer = !!pdfContainer?.querySelector('.PdfHighlighter__highlight-layer')
-      const hasScrollRef = !!scrollToHighlightRef.current
       if (pageNum) scrollViewerToPage(pageNum)
-      if (hasPages || hasLayer || hasScrollRef) {
-        if (hasScrollRef) {
-          try { console.log('[PDF] ensureReady: using library scroll'); scrollToHighlightRef.current!(target || id) } catch {}
-        }
-        scrollToHighlightWithRetries(id, pageNum)
+      if (hasPages || hasLayer) {
+        // Only perform page scroll; avoid element alignment to prevent secondary adjustment
         pendingJumpRef.current = null
         return
       }
@@ -406,7 +408,6 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       } else {
         console.warn('[PDF] ensureReady: timed out waiting for pages/highlighter')
         if (pageNum) scrollViewerToPage(pageNum)
-        scrollToHighlightWithRetries(id, pageNum)
         pendingJumpRef.current = null
       }
     }
@@ -440,8 +441,10 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     subheader: { fontSize: 10, color: '#666', marginBottom: 12 },
     item: { marginBottom: 14, alignItems: 'flex-start' },
     meta: { fontSize: 10, color: '#444', marginBottom: 6 },
-    textBlock: { padding: 8, borderWidth: 1, borderColor: '#ddd', fontSize: 11, lineHeight: 1.35 },
-    comment: { marginTop: 6, padding: 8, borderWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa', fontSize: 10 },
+    textBlock: { fontSize: 11, lineHeight: 1.35 },
+    comment: { marginTop: 6, marginLeft: 12, fontSize: 11, lineHeight: 1.35 },
+    pageSection: { marginBottom: 16 },
+    pageHeader: { fontSize: 12, marginTop: 4, marginBottom: 8 },
     // Image size is set per-element to preserve natural size (no upscaling)
   }), [])
 
@@ -489,71 +492,88 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           }
         })
       )
+      // Group items by page for clearer structure
+      const pageToItems: Record<string, any[]> = {}
+      for (const h of ordered) {
+        const p = getPageNumberFromHighlight(h)
+        const key = typeof p === 'number' ? String(p) : 'unassigned'
+        if (!pageToItems[key]) pageToItems[key] = []
+        pageToItems[key].push(h)
+      }
+      const sortedPageKeys = Object.keys(pageToItems).sort((a, b) => {
+        const aa = a === 'unassigned' ? Number.POSITIVE_INFINITY : parseInt(a, 10)
+        const bb = b === 'unassigned' ? Number.POSITIVE_INFINITY : parseInt(b, 10)
+        return aa - bb
+      })
+
       const doc = (
         <Document>
           <Page size="A4" style={exportStyles.page}>
             <Text style={exportStyles.header}>Highlights Export — {fileName}</Text>
             <Text style={exportStyles.subheader}>{now.toLocaleString()}</Text>
-            {ordered.map((h, idx) => {
-              const isScreenshot = h?.kind === 'screenshot'
-              const pageNum = getPageNumberFromHighlight(h)
-              const text = h?.content?.text ? String(h.content.text) : ''
-              const comment = h?.comment?.text ? String(h.comment.text) : ''
+            {sortedPageKeys.map((key) => {
+              const pageNum = key === 'unassigned' ? undefined : parseInt(key, 10)
+              const items = pageToItems[key]
               return (
-                <View key={h.id || String(idx)} style={exportStyles.item} wrap>
-                  <Text style={exportStyles.meta}>
-                    {`${idx + 1}. ${isScreenshot ? 'Screenshot' : 'Annotation'}${typeof pageNum === 'number' ? ` — Page ${pageNum}` : ''}`}
-                  </Text>
-                  {isScreenshot ? (
-                    h?.screenshot?.dataUrl ? (
-                      (() => {
-                        const nat = measuredMap[h.id]
-                        const dpr = typeof h?.screenshot?.devicePixelRatio === 'number' && h.screenshot.devicePixelRatio > 0 ? h.screenshot.devicePixelRatio : 1
-                        const cssW = typeof h?.screenshot?.cssWidth === 'number' ? h.screenshot.cssWidth : undefined
-                        const cssH = typeof h?.screenshot?.cssHeight === 'number' ? h.screenshot.cssHeight : undefined
-                        let baseWidthPt: number | null = null
-                        let baseHeightPt: number | null = null
-                        if (typeof cssW === 'number' && typeof cssH === 'number' && cssW > 0 && cssH > 0) {
-                          baseWidthPt = cssW * PX_TO_PT
-                          baseHeightPt = cssH * PX_TO_PT
-                        } else if (nat && nat.width > 0 && nat.height > 0) {
-                          // Convert pixel dimensions -> points using assumed 96dpi and DPR
-                          baseWidthPt = (nat.width / dpr) * PX_TO_PT
-                          baseHeightPt = (nat.height / dpr) * PX_TO_PT
-                        }
-                        if (baseWidthPt && baseHeightPt) {
-                          const displayWidth = Math.min(baseWidthPt, CONTENT_WIDTH)
-                          const displayHeight = (baseHeightPt * displayWidth) / baseWidthPt
-                          return (
-                            <PdfImage
-                              src={h.screenshot.dataUrl}
-                              style={{
-                                width: displayWidth,
-                                height: displayHeight,
-                                minWidth: displayWidth,
-                                maxWidth: displayWidth,
-                                minHeight: displayHeight,
-                                maxHeight: displayHeight,
-                                alignSelf: 'flex-start',
-                                objectFit: 'scale-down',
-                              }}
-                            />
-                          )
-                        }
-                        // Fallback if measurement failed: render modest width to avoid stretching
-                        const fallbackW = Math.min(320 * PX_TO_PT, CONTENT_WIDTH)
-                        return (
-                          <PdfImage
-                            src={h.screenshot.dataUrl}
-                            style={{ width: fallbackW, minWidth: fallbackW, maxWidth: fallbackW, alignSelf: 'flex-start', objectFit: 'scale-down' }}
-                          />
-                        )
-                      })()
-                    ) : null
-                  ) : (
-                    text ? <Text style={exportStyles.textBlock}>{text}</Text> : <Text style={exportStyles.textBlock}>—</Text>
-                  )}
-                  {comment && <Text style={exportStyles.comment}>{comment}</Text>}
+                <View key={key} style={exportStyles.pageSection} wrap>
+                  <Text style={exportStyles.pageHeader}>{typeof pageNum === 'number' ? `Page ${pageNum}` : 'Unassigned'}</Text>
+                  {items.map((h, idx) => {
+                    const isScreenshot = h?.kind === 'screenshot'
+                    const text = h?.content?.text ? String(h.content.text) : ''
+                    const comment = h?.comment?.text ? String(h.comment.text) : ''
+                    return (
+                      <View key={h.id || `${key}_${idx}`} style={exportStyles.item} wrap>
+                        {isScreenshot ? (
+                          h?.screenshot?.dataUrl ? (
+                            (() => {
+                              const nat = measuredMap[h.id]
+                              const dpr = typeof h?.screenshot?.devicePixelRatio === 'number' && h.screenshot.devicePixelRatio > 0 ? h.screenshot.devicePixelRatio : 1
+                              const cssW = typeof h?.screenshot?.cssWidth === 'number' ? h.screenshot.cssWidth : undefined
+                              const cssH = typeof h?.screenshot?.cssHeight === 'number' ? h.screenshot.cssHeight : undefined
+                              let baseWidthPt: number | null = null
+                              let baseHeightPt: number | null = null
+                              if (typeof cssW === 'number' && typeof cssH === 'number' && cssW > 0 && cssH > 0) {
+                                baseWidthPt = cssW * PX_TO_PT
+                                baseHeightPt = cssH * PX_TO_PT
+                              } else if (nat && nat.width > 0 && nat.height > 0) {
+                                baseWidthPt = (nat.width / dpr) * PX_TO_PT
+                                baseHeightPt = (nat.height / dpr) * PX_TO_PT
+                              }
+                              if (baseWidthPt && baseHeightPt) {
+                                const displayWidth = Math.min(baseWidthPt, CONTENT_WIDTH)
+                                const displayHeight = (baseHeightPt * displayWidth) / baseWidthPt
+                                return (
+                                  <PdfImage
+                                    src={h.screenshot.dataUrl}
+                                    style={{
+                                      width: displayWidth,
+                                      height: displayHeight,
+                                      minWidth: displayWidth,
+                                      maxWidth: displayWidth,
+                                      minHeight: displayHeight,
+                                      maxHeight: displayHeight,
+                                      alignSelf: 'flex-start',
+                                      objectFit: 'scale-down',
+                                    }}
+                                  />
+                                )
+                              }
+                              const fallbackW = Math.min(320 * PX_TO_PT, CONTENT_WIDTH)
+                              return (
+                                <PdfImage
+                                  src={h.screenshot.dataUrl}
+                                  style={{ width: fallbackW, minWidth: fallbackW, maxWidth: fallbackW, alignSelf: 'flex-start', objectFit: 'scale-down' }}
+                                />
+                              )
+                            })()
+                          ) : null
+                        ) : (
+                          text ? <Text style={exportStyles.textBlock}>- {text}</Text> : <Text style={exportStyles.textBlock}>-</Text>
+                        )}
+                        {comment && <Text style={exportStyles.comment}>• {comment}</Text>}
+                      </View>
+                    )
+                  })}
                 </View>
               )
             })}
@@ -654,7 +674,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   onSelectionFinished={(position: any, content: any, hideTip: () => void) => {
                     if (tool !== 'highlighter') return null
                     return (
-                      <div className="px-[4px] py-0.5 shadow-lg border border-white/10 bg-black/40 backdrop-blur-md rounded-[14px]">
+                      <div className="px-[6px] py-1 shadow-lg border border-gray-200 bg-white rounded-[20px]">
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
@@ -673,7 +693,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                               hideTip()
                             }}
                           >
-                            <img src={checkIcon} alt="" className="w-4 h-4 invert" />
+                            <img src={checkIcon} alt="" className="w-4 h-4" />
                           </button>
                           <button
                             type="button"
@@ -690,7 +710,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                               hideTip()
                             }}
                           >
-                            <img src={filesCopyIcon} alt="" className="w-4 h-4 invert" />
+                            <img src={filesCopyIcon} alt="" className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
@@ -786,7 +806,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                   className="absolute -translate-x-1/2"
                   style={{ left: selectionRect.x + (selectionRect.width / 2), top: selectionRect.y + selectionRect.height + 8 }}
                 >
-                  <div className="px-[4px] py-0.5 shadow-lg border border-white/10 bg-black/40 backdrop-blur-md rounded-[14px]">
+                  <div className="px-[6px] py-1 shadow-lg border border-gray-200 bg-white rounded-[20px]">
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
@@ -833,7 +853,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                           setTool('highlighter')
                         }}
                       >
-                        <img src={checkIcon} alt="" className="w-4 h-4 invert" />
+                        <img src={checkIcon} alt="" className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
@@ -847,7 +867,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                           setTool('highlighter')
                         }}
                       >
-                        <img src={xIcon} alt="" className="w-4 h-4 invert" />
+                        <img src={xIcon} alt="" className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -885,15 +905,8 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
               const target = rphHighlights.find((h) => h.id === id)
               if (target) {
                 const pageNum = getPageNumberFromHighlight(target)
-                // Try the library's scroll helper first if ready
-                if (scrollToHighlightRef.current) {
-                  try { console.log('[PDF] attempting scroll via library helper'); scrollToHighlightRef.current(target) } catch (e) { console.warn('[PDF] library helper scroll failed', e) }
-                  if (pageNum) scrollViewerToPage(pageNum)
-                  scrollToHighlightWithRetries(id, pageNum)
-                } else {
-                  console.warn('[PDF] scrollToHighlightRef not ready')
-                  ensureReadyAndJump(id, pageNum, target)
-                }
+                // Use smooth scrolling consistently for highlights
+                if (pageNum) scrollViewerToPage(pageNum)
               } else {
                 console.warn('[PDF] onJumpTo: target not found in rphHighlights')
               }
