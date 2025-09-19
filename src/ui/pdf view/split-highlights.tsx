@@ -1,4 +1,18 @@
 import React from 'react'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 // removed unused icons per UI simplification
 import cameraIcon from '../assets/camera.svg'
 import highlighterIcon from '../assets/highlighter.svg'
@@ -132,38 +146,32 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                               Screenshot
                             </span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5">Page {pageNumber ?? '—'}</span>
-                            <div className="ml-auto relative">
-                              <button
-                                className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50"
-                                aria-label="More"
-                                title="More"
-                                onClick={(e) => { e.stopPropagation(); setMenuOpenId((prev) => prev === h.id ? null : h.id) }}
-                              >
-                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <circle cx="4" cy="10" r="1.5" fill="currentColor" />
-                                  <circle cx="10" cy="10" r="1.5" fill="currentColor" />
-                                  <circle cx="16" cy="10" r="1.5" fill="currentColor" />
-                                </svg>
-                              </button>
-                              {menuOpenId === h.id ? (
-                                <div
-                                  className="absolute right-0 top-7 z-10 w-36 rounded-md border border-gray-200 bg-white shadow-lg py-1"
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                >
+                            <div className="ml-auto">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
                                   <button
-                                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 whitespace-nowrap"
-                                    onClick={async () => { setMenuOpenId(null); await copyImageFromDataUrl(h?.screenshot?.dataUrl || '') }}
+                                    className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50"
+                                    aria-label="More"
+                                    title="More"
+                                    onClick={(e) => e.stopPropagation()}
                                   >
+                                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <circle cx="4" cy="10" r="1.5" fill="currentColor" />
+                                      <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+                                      <circle cx="16" cy="10" r="1.5" fill="currentColor" />
+                                    </svg>
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="w-40 bg-white text-gray-900 border border-gray-200 shadow-md">
+                                  <DropdownMenuItem className="hover:bg-gray-50" onClick={async () => { await copyImageFromDataUrl(h?.screenshot?.dataUrl || '') }}>
                                     Copy Image
-                                  </button>
-                                  <button
-                                    className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 whitespace-nowrap"
-                                    onClick={() => { setMenuOpenId(null); onDelete(h.id) }}
-                                  >
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-600 focus:text-red-600 hover:bg-red-50" onClick={() => onDelete(h.id)}>
                                     Delete
-                                  </button>
-                                </div>
-                              ) : null}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
                           <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
@@ -245,50 +253,39 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                               {isScreenshot ? 'Screenshot' : 'Annotation'}
                             </span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5">Page {pageNumber ?? '—'}</span>
-                            {true ? (
-                              <div className="ml-auto relative">
-                                <button
-                                  className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50"
-                                  aria-label="More"
-                                  title="More"
-                                  onClick={(e) => { e.stopPropagation(); setMenuOpenId((prev) => prev === h.id ? null : h.id) }}
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <circle cx="4" cy="10" r="1.5" fill="currentColor" />
-                                    <circle cx="10" cy="10" r="1.5" fill="currentColor" />
-                                    <circle cx="16" cy="10" r="1.5" fill="currentColor" />
-                                  </svg>
-                                </button>
-                                {menuOpenId === h.id ? (
-                                  <div
-                                    className="absolute right-0 top-7 z-10 w-36 rounded-md border border-gray-200 bg-white shadow-lg py-1"
-                                    onMouseDown={(e) => e.stopPropagation()}
+                            <div className="ml-auto">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50"
+                                    aria-label="More"
+                                    title="More"
+                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    {!isScreenshot ? (
-                                      <button
-                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 whitespace-nowrap"
-                                        onClick={async () => { setMenuOpenId(null); await copyAnnotationText(text) }}
-                                      >
-                                        Copy Annotation
-                                      </button>
-                                    ) : (
-                                      <button
-                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 whitespace-nowrap"
-                                        onClick={async () => { setMenuOpenId(null); await copyImageFromDataUrl(h?.screenshot?.dataUrl || '') }}
-                                      >
-                                        Copy Image
-                                      </button>
-                                    )}
-                                    <button
-                                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 whitespace-nowrap"
-                                      onClick={() => { setMenuOpenId(null); onDelete(h.id) }}
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
+                                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <circle cx="4" cy="10" r="1.5" fill="currentColor" />
+                                      <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+                                      <circle cx="16" cy="10" r="1.5" fill="currentColor" />
+                                    </svg>
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="w-44 bg-white text-gray-900 border border-gray-200 shadow-md">
+                                  {!isScreenshot ? (
+                                    <DropdownMenuItem className="hover:bg-gray-50" onClick={async () => { await copyAnnotationText(text) }}>
+                                      Copy Annotation
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem className="hover:bg-gray-50" onClick={async () => { await copyImageFromDataUrl(h?.screenshot?.dataUrl || '') }}>
+                                      Copy Image
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-600 focus:text-red-600 hover:bg-red-50" onClick={() => onDelete(h.id)}>
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                           {isScreenshot ? (
                             <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
