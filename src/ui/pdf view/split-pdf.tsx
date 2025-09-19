@@ -6,6 +6,7 @@ import PdfZoomToolbar from '../components/pdf-zoom-toolbar'
 import checkIcon from '../assets/check.svg'
 import xIcon from '../assets/x.svg'
 import filesCopyIcon from '../assets/files_copy.svg'
+import exportIcon from '../assets/export.svg'
 import { Document, Page, Text, View, Image as PdfImage, StyleSheet, pdf } from '@react-pdf/renderer'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
@@ -38,6 +39,10 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const pendingJumpRef = React.useRef<{ id: string; page?: number } | null>(null)
   const [zoom, setZoom] = React.useState<'auto' | number>('auto')
   const pdfScaleValue = React.useMemo(() => (zoom === 'auto' ? 'page-fit' : zoom), [zoom])
+  // Keep highlight filtering always on 'all' for now; left header now shows page nav only
+  const [activeTab] = React.useState<'all' | 'annotations' | 'screenshots'>('all')
+  const [pageTab, setPageTab] = React.useState<'annotate' | 'writing'>('annotate')
+  const [searchQuery, setSearchQuery] = React.useState('')
 
   // Trigger layout recalculation when zoom changes (pdf.js & overlay layers often listen to resize)
   React.useEffect(() => {
@@ -599,22 +604,60 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
 
   return (<>
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-        <div className="text-base text-gray-800 truncate max-w-[70%]" title={fileName}>{fileName}</div>
-        <div className="flex items-center gap-2">
+      <div className="relative flex items-center px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center gap-2 min-w-0">
+          <nav className="inline-flex rounded-md border border-gray-200 bg-gray-50 p-0.5">
+            <button
+              className={`px-2.5 py-1.5 text-sm rounded ${pageTab === 'annotate' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              onClick={() => setPageTab('annotate')}
+            >
+              Annotate
+            </button>
+            <button
+              className={`px-2.5 py-1.5 text-sm rounded ${pageTab === 'writing' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              onClick={() => setPageTab('writing')}
+            >
+              Writing
+            </button>
+          </nav>
+        </div>
+        <div className="absolute left-1/2 -translate-x-1/2 px-4 w-full max-w-md pointer-events-none">
+          <div className="relative pointer-events-auto flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                className="w-full h-9 pl-3 pr-8 text-sm rounded-lg border border-gray-200 bg-white placeholder:text-gray-400 placeholder:text-center focus:placeholder-transparent focus:outline-none focus:ring-2 focus:ring-gray-200"
+                placeholder="Search annotations or comments"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery ? (
+                <button
+                  className="absolute right-1.5 top-1.5 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-gray-100"
+                  onClick={() => setSearchQuery('')}
+                  title="Clear"
+                >
+                  <img src={xIcon} alt="" className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+            <button
+              className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
+              onClick={handleExport}
+              aria-label="Export highlights to PDF"
+              title="Export"
+            >
+              <img src={exportIcon} alt="" className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="ml-auto flex items-center gap-2 min-w-0">
           <button
-            className="rounded-md px-3 py-1 text-sm bg-white border border-gray-200 hover:bg-gray-100 transition"
-            onClick={handleExport}
-            aria-label="Export highlights to PDF"
-          >
-            Export
-          </button>
-          <button
-            className="rounded-md px-3 py-1 text-sm bg-black text-white hover:opacity-80 transition"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
             onClick={onClose}
             aria-label="Close split view"
+            title="Close"
           >
-            Close
+            <img src={xIcon} alt="" className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -922,6 +965,8 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
               // Scroll the viewer to the given page number
               scrollViewerToPage(page)
             }}
+            activeTab={activeTab}
+            searchQuery={searchQuery}
           />
         </div>
       </div>

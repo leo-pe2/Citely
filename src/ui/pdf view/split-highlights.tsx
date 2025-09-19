@@ -1,5 +1,7 @@
 import React from 'react'
-import trashIcon from '../assets/trash.svg'
+// removed unused icons per UI simplification
+import cameraIcon from '../assets/camera.svg'
+import highlighterIcon from '../assets/highlighter.svg'
 
 type SplitHighlightsProps = {
   highlights: any[]
@@ -7,6 +9,8 @@ type SplitHighlightsProps = {
   onDelete: (id: string) => void
   onChangeComment: (id: string, text: string) => void
   onJumpToPage?: (page: number) => void
+  activeTab: 'all' | 'annotations' | 'screenshots'
+  searchQuery: string
 }
 
 function getPageNumber(h: any): number | undefined {
@@ -24,24 +28,58 @@ function getPageNumber(h: any): number | undefined {
   return undefined
 }
 
-export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChangeComment, onJumpToPage }: SplitHighlightsProps) {
+export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChangeComment, onJumpToPage, activeTab, searchQuery }: SplitHighlightsProps) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
+  const [menuOpenId, setMenuOpenId] = React.useState<string | null>(null)
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const prevCountRef = React.useRef<number>(highlights?.length ?? 0)
 
-  function getFirstSentence(input: string): string {
-    if (!input) return ''
-    const match = input.match(/^[\s\S]*?[.!?](?:\s|$)/)
-    if (match && match[0].trim().length > 0) return match[0].trim()
-    const firstLine = input.split('\n')[0]
-    return firstLine
+  async function copyAnnotationText(text: string) {
+    try {
+      const value = (text || '').trim()
+      if (!value) return
+      await navigator.clipboard?.writeText(value)
+    } catch {}
   }
+
+  async function copyImageFromDataUrl(dataUrl: string) {
+    try {
+      if (!dataUrl) return
+      const anyWindow = window as unknown as { ClipboardItem?: any }
+      if (anyWindow?.ClipboardItem) {
+        const res = await fetch(dataUrl)
+        const blob = await res.blob()
+        const type = blob.type || 'image/png'
+        const item = new anyWindow.ClipboardItem({ [type]: blob })
+        await navigator.clipboard.write([item])
+        return
+      }
+      await navigator.clipboard?.writeText(dataUrl)
+    } catch {}
+  }
+
+  // Comment previews are capped to the first visual line via CSS truncation
 
   const orderedHighlights = React.useMemo(() => {
     const items = highlights.map((h, i) => ({ h, i, page: getPageNumber(h) ?? Number.POSITIVE_INFINITY }))
     items.sort((a, b) => (a.page === b.page ? a.i - b.i : a.page - b.page))
     return items.map((it) => it.h)
   }, [highlights])
+
+  const totalScreenshots = React.useMemo(() => orderedHighlights.filter((h) => h?.kind === 'screenshot').length, [orderedHighlights])
+  const totalAnnotations = React.useMemo(() => orderedHighlights.length - totalScreenshots, [orderedHighlights, totalScreenshots])
+
+  const filteredHighlights = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return orderedHighlights.filter((h) => {
+      if (activeTab === 'annotations' && h?.kind === 'screenshot') return false
+      if (activeTab === 'screenshots' && h?.kind !== 'screenshot') return false
+      if (!q) return true
+      const text = (h?.content?.text ?? '').toLowerCase()
+      const comment = (h?.comment?.text ?? '').toLowerCase()
+      return text.includes(q) || comment.includes(q)
+    })
+  }, [orderedHighlights, activeTab, searchQuery])
 
   React.useEffect(() => {
     console.log('[HL] list render count=', orderedHighlights.length)
@@ -60,6 +98,14 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
     }
   }, [orderedHighlights])
 
+  React.useEffect(() => {
+    function onGlobalMouseDown() {
+      if (menuOpenId) setMenuOpenId(null)
+    }
+    window.addEventListener('mousedown', onGlobalMouseDown)
+    return () => window.removeEventListener('mousedown', onGlobalMouseDown)
+  }, [menuOpenId])
+
   return (
     <div className="w-full h-full overflow-y-auto p-4" ref={containerRef}>
       {(!highlights || highlights.length === 0) ? (
@@ -68,159 +114,256 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
         </div>
       ) : (
         <>
-          <ol className="space-y-4">
-            {orderedHighlights.map((h, idx) => {
-              const isScreenshot = h?.kind === 'screenshot'
-              const text = h?.content?.text || ''
-              const pageNumber = getPageNumber(h)
-              return (
-                <li key={h.id}>
-                  <div className="relative grid grid-cols-[1.5rem_1fr] gap-x-2.5">
-                    <div className="col-[1] row-[1] flex items-stretch justify-center">
-                      <div className="flex flex-col items-center">
-                        <div className="w-6 h-6 rounded-full bg-black text-white text-[10px] font-medium flex items-center justify-center select-none leading-none mt-0.5">{idx + 1}</div>
-                        <div className="w-px bg-gray-300 flex-1" />
-                      </div>
-                    </div>
-                    <div className="col-[2] row-[1]">
-                      {isScreenshot ? (
-                        <div className="inline-block border border-gray-300 rounded-[12px] overflow-hidden bg-white max-w-full">
-                          <img
-                            src={h?.screenshot?.dataUrl}
-                            alt="Screenshot"
-                            className="block w-auto h-auto max-w-full max-h-[280px] object-contain bg-gray-50 cursor-pointer"
-                            title={(() => {
-                              const p = h?.screenshot?.pageNumber
-                              return typeof p === 'number' ? `Go to page ${p}` : 'Screenshot'
-                            })()}
-                            onClick={() => {
-                              try {
-                                const p = h?.screenshot?.pageNumber
-                                if (typeof p === 'number' && onJumpToPage) onJumpToPage(p)
-                              } catch {}
-                            }}
-                          />
+
+          {filteredHighlights.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 text-sm">No results</div>
+          ) : activeTab === 'screenshots' ? (
+            <ol className="mt-4 space-y-3">
+              {filteredHighlights.map((h) => {
+                const pageNumber = getPageNumber(h)
+                return (
+                  <li key={h.id}>
+                    <div className="group rounded-xl border border-gray-200 bg-white p-3 shadow-sm hover:shadow transition">
+                      <div className="flex items-start gap-3" onMouseDown={(e) => e.stopPropagation()}>
+                        <div className="flex-1 min-w-0">
+                          <div className="relative flex items-center gap-2 text-xs text-gray-600 mb-1">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-1.5 py-0.5">
+                              <img src={cameraIcon} alt="" className="h-3 w-3" />
+                              Screenshot
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5">Page {pageNumber ?? '—'}</span>
+                            <div className="ml-auto relative">
+                              <button
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50"
+                                aria-label="More"
+                                title="More"
+                                onClick={(e) => { e.stopPropagation(); setMenuOpenId((prev) => prev === h.id ? null : h.id) }}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="4" cy="10" r="1.5" fill="currentColor" />
+                                  <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+                                  <circle cx="16" cy="10" r="1.5" fill="currentColor" />
+                                </svg>
+                              </button>
+                              {menuOpenId === h.id ? (
+                                <div
+                                  className="absolute right-0 top-7 z-10 w-36 rounded-md border border-gray-200 bg-white shadow-lg py-1"
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 whitespace-nowrap"
+                                    onClick={async () => { setMenuOpenId(null); await copyImageFromDataUrl(h?.screenshot?.dataUrl || '') }}
+                                  >
+                                    Copy Image
+                                  </button>
+                                  <button
+                                    className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 whitespace-nowrap"
+                                    onClick={() => { setMenuOpenId(null); onDelete(h.id) }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                            <img
+                              src={h?.screenshot?.dataUrl}
+                              alt="Screenshot"
+                              className="block w-full max-h-[240px] object-contain cursor-pointer"
+                              onClick={() => {
+                                try {
+                                  const p = h?.screenshot?.pageNumber
+                                  if (typeof p === 'number' && onJumpToPage) onJumpToPage(p)
+                                } catch {}
+                              }}
+                            />
+                          </div>
+                          <div className="mt-2">
+                            {editingId === h.id ? (
+                              <textarea
+                                rows={1}
+                                autoFocus
+                                placeholder="Your comment"
+                                className="w-full px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm placeholder:text-sm placeholder-gray-400 focus:outline-none overflow-hidden resize-none"
+                                value={h?.comment?.text ?? ''}
+                                onChange={(e) => onChangeComment(h.id, e.target.value)}
+                                onFocus={(e) => {
+                                  try {
+                                    const len = e.currentTarget.value.length
+                                    e.currentTarget.setSelectionRange(len, len)
+                                  } catch {}
+                                }}
+                                onInput={(e) => {
+                                  const el = e.currentTarget
+                                  el.style.height = 'auto'
+                                  el.style.height = `${el.scrollHeight}px`
+                                }}
+                                onBlur={() => setEditingId(null)}
+                                ref={(el) => {
+                                  if (el) {
+                                    el.style.height = 'auto'
+                                    el.style.height = `${el.scrollHeight}px`
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <button
+                                className="w-full text-left px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm"
+                                onClick={() => setEditingId(h.id)}
+                                title="Edit comment"
+                              >
+                                {(h?.comment?.text ?? '').trim().length > 0 ? (
+                                  <span className="block truncate">{(h?.comment?.text ?? '').trim()}</span>
+                                ) : (
+                                  <span className="text-gray-400 text-sm">Your comment</span>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        <button
-                          className="w-full text-left text-base text-gray-900 border border-gray-300 border-dashed rounded-[12px] px-2 py-2 hover:bg-gray-50 inline-flex items-center"
-                          onClick={() => { console.log('[HL] click jump', h.id, 'page=', pageNumber); onJumpTo(h.id) }}
-                          title="Go to highlight"
-                        >
-                          {text || '—'}
-                        </button>
-                      )}
-                    </div>
-                    <div className="col-[1] row-[2] flex items-stretch justify-center">
-                      <div className="w-px bg-gray-300 h-full" />
-                    </div>
-                    <div className="col-[2] row-[2]"><div className="h-3" /></div>
-                    <div className="col-[1] row-[3] flex items-stretch justify-center">
-                      <div className="flex flex-col items-center w-full">
-                        <div className="w-px bg-gray-300 flex-1" />
-                        <div className="w-3 h-3 rounded-full bg-black" />
-                        <div className="w-px bg-gray-300 flex-1" />
                       </div>
                     </div>
-                    <div className="col-[2] row-[3]">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <div className="flex-1">
+                  </li>
+                )
+              })}
+            </ol>
+          ) : (
+            <ol className="mt-4 space-y-3">
+              {filteredHighlights.map((h, idx) => {
+                const isScreenshot = h?.kind === 'screenshot'
+                const text = h?.content?.text || ''
+                const pageNumber = getPageNumber(h)
+                return (
+                  <li key={h.id}>
+                    <div className="group rounded-xl border border-gray-200 bg-white p-3 shadow-sm hover:shadow transition">
+                      <div className="flex items-start gap-3" onMouseDown={(e) => e.stopPropagation()}>
+                        <div className="flex-1 min-w-0">
+                          <div className="relative flex items-center gap-2 text-xs text-gray-600 mb-1">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-1.5 py-0.5">
+                              <img src={isScreenshot ? cameraIcon : highlighterIcon} alt="" className="h-3 w-3" />
+                              {isScreenshot ? 'Screenshot' : 'Annotation'}
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5">Page {pageNumber ?? '—'}</span>
+                            {true ? (
+                              <div className="ml-auto relative">
+                                <button
+                                  className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50"
+                                  aria-label="More"
+                                  title="More"
+                                  onClick={(e) => { e.stopPropagation(); setMenuOpenId((prev) => prev === h.id ? null : h.id) }}
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="4" cy="10" r="1.5" fill="currentColor" />
+                                    <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+                                    <circle cx="16" cy="10" r="1.5" fill="currentColor" />
+                                  </svg>
+                                </button>
+                                {menuOpenId === h.id ? (
+                                  <div
+                                    className="absolute right-0 top-7 z-10 w-36 rounded-md border border-gray-200 bg-white shadow-lg py-1"
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                  >
+                                    {!isScreenshot ? (
+                                      <button
+                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 whitespace-nowrap"
+                                        onClick={async () => { setMenuOpenId(null); await copyAnnotationText(text) }}
+                                      >
+                                        Copy Annotation
+                                      </button>
+                                    ) : (
+                                      <button
+                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 whitespace-nowrap"
+                                        onClick={async () => { setMenuOpenId(null); await copyImageFromDataUrl(h?.screenshot?.dataUrl || '') }}
+                                      >
+                                        Copy Image
+                                      </button>
+                                    )}
+                                    <button
+                                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 whitespace-nowrap"
+                                      onClick={() => { setMenuOpenId(null); onDelete(h.id) }}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
                           {isScreenshot ? (
-                            <>
-                              <span className="font-medium">Screenshot</span>
-                              {(() => {
-                                const p = h?.screenshot?.pageNumber
-                                return typeof p === 'number' ? (
-                                  <>
-                                    <span className="mx-1 text-gray-400">/</span>
-                                    <span>Page {p}</span>
-                                  </>
-                                ) : null
-                              })()}
-                            </>
+                            <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                              <img
+                                src={h?.screenshot?.dataUrl}
+                                alt="Screenshot"
+                                className="block w-full max-h-[240px] object-contain cursor-pointer"
+                                onClick={() => {
+                                  try {
+                                    const p = h?.screenshot?.pageNumber
+                                    if (typeof p === 'number' && onJumpToPage) onJumpToPage(p)
+                                  } catch {}
+                                }}
+                              />
+                            </div>
                           ) : (
-                            <>
-                              <span className="font-medium">Annotation</span>
-                              <span className="mx-1 text-gray-400">/</span>
-                              <span>Page {pageNumber ?? '—'}</span>
-                            </>
+                            <button
+                              className="w-full text-left text-[15px] text-gray-900 rounded-lg px-2 py-2 hover:bg-gray-50"
+                              onClick={() => { onJumpTo(h.id) }}
+                              title="Go to highlight"
+                            >
+                              {text || '—'}
+                            </button>
                           )}
+                          <div className="mt-2">
+                            {editingId === h.id ? (
+                              <textarea
+                                rows={1}
+                                autoFocus
+                                placeholder="Your comment"
+                                className="w-full px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm placeholder:text-sm placeholder-gray-400 focus:outline-none overflow-hidden resize-none"
+                                value={h?.comment?.text ?? ''}
+                                onChange={(e) => onChangeComment(h.id, e.target.value)}
+                                onFocus={(e) => {
+                                  try {
+                                    const len = e.currentTarget.value.length
+                                    e.currentTarget.setSelectionRange(len, len)
+                                  } catch {}
+                                }}
+                                onInput={(e) => {
+                                  const el = e.currentTarget
+                                  el.style.height = 'auto'
+                                  el.style.height = `${el.scrollHeight}px`
+                                }}
+                                onBlur={() => setEditingId(null)}
+                                ref={(el) => {
+                                  if (el) {
+                                    el.style.height = 'auto'
+                                    el.style.height = `${el.scrollHeight}px`
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <button
+                                className="w-full text-left px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm"
+                                onClick={() => setEditingId(h.id)}
+                                title="Edit comment"
+                              >
+                                {(h?.comment?.text ?? '').trim().length > 0 ? (
+                                  <span className="block truncate">{(h?.comment?.text ?? '').trim()}</span>
+                                ) : (
+                                  <span className="text-gray-400 text-sm">Your comment</span>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          className="h-8 w-8 flex items-center justify-center rounded hover:bg-gray-500/10 active:scale-[0.98] transition"
-                          onClick={() => { console.log('[HL] delete', h.id); onDelete(h.id) }}
-                        >
-                          <img src={trashIcon} alt="" className="w-4 h-4" />
-                        </button>
+                        {null}
                       </div>
                     </div>
-                    <div className="col-[1] row-[4] flex items-stretch justify-center">
-                      <div className="w-px bg-gray-300 h-full" />
-                    </div>
-                    <div className="col-[2] row-[4]"><div className="h-3" /></div>
-                    <div className="col-[1] row-[5] flex items-start justify-center">
-                      <div className="w-3 h-3 rounded-full bg-black" />
-                    </div>
-                    <div className="col-[2] row-[5]">
-                      {editingId === h.id ? (
-                        <textarea
-                          rows={1}
-                          autoFocus
-                          placeholder="Your comment"
-                          className="w-full px-2 py-2 rounded-[12px] bg-gray-100 text-gray-900 text-sm placeholder:text-sm placeholder-gray-400 focus:outline-none overflow-hidden resize-none"
-                          value={h?.comment?.text ?? ''}
-                          onChange={(e) => onChangeComment(h.id, e.target.value)}
-                          onFocus={(e) => {
-                            try {
-                              const len = e.currentTarget.value.length
-                              e.currentTarget.setSelectionRange(len, len)
-                            } catch {}
-                          }}
-                          onInput={(e) => {
-                            const el = e.currentTarget
-                            el.style.height = 'auto'
-                            el.style.height = `${el.scrollHeight}px`
-                          }}
-                          onBlur={() => setEditingId(null)}
-                          ref={(el) => {
-                            if (el) {
-                              el.style.height = 'auto'
-                              el.style.height = `${el.scrollHeight}px`
-                            }
-                          }}
-                        />
-                      ) : (
-                        <button
-                          className="w-full text-left px-2 py-2 rounded-[12px] bg-gray-100 text-gray-900 text-sm"
-                          onClick={() => setEditingId(h.id)}
-                          title="Edit comment"
-                        >
-                          {(h?.comment?.text ?? '').trim().length > 0 ? (
-                            <>
-                              {(() => {
-                                const full = (h?.comment?.text ?? '').trim()
-                                const first = getFirstSentence(full)
-                                const hasMore = first.length < full.length
-                                return (
-                                  <>
-                                    <span>{first}</span>
-                                    {hasMore ? <span className="text-gray-400"> …</span> : null}
-                                  </>
-                                )
-                              })()}
-                            </>
-                          ) : (
-                            <span className="text-gray-400 text-sm">Your comment</span>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
+                  </li>
+                )
+              })}
+            </ol>
+          )}
           <div className="h-4" />
         </>
       )}
