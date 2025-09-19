@@ -47,6 +47,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
   const [menuOpenId, setMenuOpenId] = React.useState<string | null>(null)
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const prevCountRef = React.useRef<number>(highlights?.length ?? 0)
+  const suppressClicksUntilRef = React.useRef<number>(0)
 
   async function copyAnnotationText(text: string) {
     try {
@@ -180,6 +181,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                               alt="Screenshot"
                               className="block w-full max-h-[240px] object-contain cursor-pointer"
                               onClick={() => {
+                                if (Date.now() < suppressClicksUntilRef.current) return
                                 try {
                                   const p = h?.screenshot?.pageNumber
                                   if (typeof p === 'number' && onJumpToPage) onJumpToPage(p)
@@ -207,7 +209,10 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                                   el.style.height = 'auto'
                                   el.style.height = `${el.scrollHeight}px`
                                 }}
-                                onBlur={() => setEditingId(null)}
+                                onBlur={() => {
+                                  setEditingId(null)
+                                  suppressClicksUntilRef.current = Date.now() + 250
+                                }}
                                 ref={(el) => {
                                   if (el) {
                                     el.style.height = 'auto'
@@ -217,7 +222,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                               />
                             ) : (
                               <button
-                                className="w-full text-left px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm"
+                                className="w-full text-left px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm cursor-text"
                                 onClick={() => setEditingId(h.id)}
                                 title="Edit comment"
                               >
@@ -294,6 +299,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                                 alt="Screenshot"
                                 className="block w-full max-h-[240px] object-contain cursor-pointer"
                                 onClick={() => {
+                                  if (Date.now() < suppressClicksUntilRef.current) return
                                   try {
                                     const p = h?.screenshot?.pageNumber
                                     if (typeof p === 'number' && onJumpToPage) onJumpToPage(p)
@@ -304,7 +310,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                           ) : (
                             <button
                               className="w-full text-left text-[15px] text-gray-900 rounded-lg px-2 py-2 hover:bg-gray-50"
-                              onClick={() => { onJumpTo(h.id) }}
+                              onClick={() => { if (Date.now() < suppressClicksUntilRef.current) return; onJumpTo(h.id) }}
                               title="Go to highlight"
                             >
                               {text || '—'}
@@ -330,7 +336,10 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                                   el.style.height = 'auto'
                                   el.style.height = `${el.scrollHeight}px`
                                 }}
-                                onBlur={() => setEditingId(null)}
+                                onBlur={() => {
+                                  setEditingId(null)
+                                  suppressClicksUntilRef.current = Date.now() + 250
+                                }}
                                 ref={(el) => {
                                   if (el) {
                                     el.style.height = 'auto'
@@ -340,7 +349,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                               />
                             ) : (
                               <button
-                                className="w-full text-left px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm"
+                                className="w-full text-left px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm cursor-text"
                                 onClick={() => setEditingId(h.id)}
                                 title="Edit comment"
                               >

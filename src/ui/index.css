@@ -107,3 +107,8 @@ input[type="reset"] {
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* Ensure I-beam when explicitly requested */
+.cursor-text {
+  cursor: text;
+}
