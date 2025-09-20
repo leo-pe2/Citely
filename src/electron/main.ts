@@ -194,10 +194,10 @@ async function writeKanbanStatuses(projectId: string, statuses: Record<string, s
 
 
 app.on('ready', () => {
-    // In development, set the app/dock icon from the project root desktopIcon.png
+    // In development, set the app/dock icon from the project root DocIcon.png
     if (isDev) {
-        const devIconPathPng = path.join(app.getAppPath(), 'desktopIcon.png');
-        const devIconPathIcns = path.join(app.getAppPath(), 'desktopIcon.icns');
+        const devIconPathPng = path.join(app.getAppPath(), 'DocIcon.png');
+        const devIconPathIcns = path.join(app.getAppPath(), 'DocIcon.icns');
         if (process.platform === 'darwin' && app.dock) {
             let img: ReturnType<typeof nativeImage.createFromPath> | null = null;
             if (existsSync(devIconPathIcns)) {
@@ -233,9 +233,9 @@ app.on('ready', () => {
             preload: path.join(__dirname, 'preload.cjs'),
         },
         ...(isDev
-            ? { icon: existsSync(path.join(app.getAppPath(), 'desktopIcon.ico'))
-                ? path.join(app.getAppPath(), 'desktopIcon.ico')
-                : path.join(app.getAppPath(), 'desktopIcon.png') }
+            ? { icon: existsSync(path.join(app.getAppPath(), 'DocIcon.ico'))
+                ? path.join(app.getAppPath(), 'DocIcon.ico')
+                : path.join(app.getAppPath(), 'DocIcon.png') }
             : {}),
     });
 

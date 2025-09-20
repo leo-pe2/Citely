@@ -9,19 +9,19 @@
       "dist-electron/preload.cjs",
       "src/assets/**"
     ],
-    "icon": "./desktopIcon.png",
+    "icon": "./DocIcon.png",
     "mac": {
       "target": "dmg",
-      "icon": "./desktopIcon.icns"
+      "icon": "./DocIcon.icns"
     },
     "linux": {
       "target": "AppImage",
       "category": "Utility",
-      "icon": "./desktopIcon.png"
+      "icon": "./DocIcon.png"
     },
     "win": {
       "target": ["portable", "msi"],
-      "icon": "./desktopIcon.ico"
+      "icon": "./DocIcon.ico"
     },
     "npmRebuild": false,
     "buildDependenciesFromSource": false

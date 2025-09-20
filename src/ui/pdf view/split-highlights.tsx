@@ -148,10 +148,10 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                             </span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5">Page {pageNumber ?? '—'}</span>
                             <div className="ml-auto">
-                              <DropdownMenu>
+                              <DropdownMenu onOpenChange={(open) => setMenuOpenId(open ? h.id : (menuOpenId === h.id ? null : menuOpenId))}>
                                 <DropdownMenuTrigger asChild>
                                   <button
-                                    className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50"
+                                    className={`h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50 cursor-pointer ${menuOpenId === h.id ? 'bg-gray-50' : ''}`}
                                     aria-label="More"
                                     title="More"
                                     onClick={(e) => e.stopPropagation()}
@@ -259,10 +259,10 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                             </span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5">Page {pageNumber ?? '—'}</span>
                             <div className="ml-auto">
-                              <DropdownMenu>
+                              <DropdownMenu onOpenChange={(open) => setMenuOpenId(open ? h.id : (menuOpenId === h.id ? null : menuOpenId))}>
                                 <DropdownMenuTrigger asChild>
                                   <button
-                                    className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50"
+                                    className={`h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-gray-50 cursor-pointer ${menuOpenId === h.id ? 'bg-gray-50' : ''}`}
                                     aria-label="More"
                                     title="More"
                                     onClick={(e) => e.stopPropagation()}

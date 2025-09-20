@@ -182,7 +182,7 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
                           }}
                           style={{ color: overrides[p.id]?.color || '#000000', lineHeight: 0 }}
                         />
-                        <span className="block truncate text-left">{p.name}</span>
+                        <span className="block truncate text-left">{overrides[p.id]?.name || p.name}</span>
                       </button>
                     </div>
                   </li>
