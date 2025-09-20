@@ -215,13 +215,13 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
               {projectsExpanded && (
                 <>
                   <div className="relative w-[208px] mx-auto px-[9px] -mt-0.5">
-                    <div className="absolute left-[25px] top-0 bottom-0 w-px bg-gray-300" />
+                    <div className="absolute left-[25px] top-0 bottom-[27px] w-px bg-gray-300" />
                     <ul className="space-y-1 pl-6">
-                      {projects.map((p) => (
+                    {projects.map((p) => (
                         <li key={p.id} className="relative">
                           <div className="rounded">
                               <button
-                                className={`group relative flex items-center w-[158px] h-9 rounded-xl px-2 text-sm before:content-[''] before:absolute before:inset-y-0 before:-right-[17px] before:left-1 before:rounded-xl before:transition-colors ${selectedCategoryId === p.id ? 'before:bg-gray-100' : 'before:bg-transparent hover:before:bg-gray-100'}`}
+                                className={`group relative flex items-center w-[158px] h-9 rounded-xl px-2 text-sm before:content-[''] before:absolute before:inset-y-0 before:-right-[17px] before:left-1 before:rounded-xl before:transition-colors ${selectedCategoryId === p.id ? 'before:bg-gray-300/20' : 'before:bg-transparent hover:before:bg-gray-300/20'}`}
                               onClick={() => selectCategory(p)}
                             >
                               <span className="pointer-events-none absolute -left-[8px] top-[calc(50%-18px)] h-5 w-3">
@@ -231,31 +231,37 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
                             </button>
                           </div>
                         </li>
-                      ))}
+                    ))}
+                      <li key="__new__" className="relative">
+                        <div className="rounded">
+                          <button
+                            className="relative flex items-center w-[158px] h-9 rounded-xl px-2 text-sm before:content-[''] before:absolute before:inset-y-0 before:-right-[17px] before:left-1 before:rounded-xl before:bg-gray-300/20 before:transition-colors"
+                            onClick={() => setIsCreateOpen(true)}
+                            aria-label="Create new category"
+                          >
+                            <span className="pointer-events-none absolute -left-[8px] top-[calc(50%-18px)] h-5 w-3">
+                              <span className="block h-full w-full border-l border-b border-gray-300 rounded-bl-[14px]" />
+                            </span>
+                            <span className="relative z-10 ml-1 px-2">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="h-4 w-4 text-gray-500"
+                                aria-hidden="true"
+                              >
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                              </svg>
+                            </span>
+                          </button>
+                        </div>
+                      </li>
                     </ul>
-                  </div>
-
-                  <div className="px-2 py-2">
-                    <button
-                      className="flex w-full items-center justify-center rounded px-2 py-2 hover:bg-gray-200 bg-gray-100"
-                      onClick={() => setIsCreateOpen(true)}
-                      aria-label="Create new category"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-4 w-4 text-gray-500"
-                        aria-hidden="true"
-                      >
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
                   </div>
                 </>
               )}
