@@ -189,7 +189,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
               >
                 <span className="flex items-center gap-2">
                   <img src={categoryIcon} alt="" className="h-5 w-5" />
-                  <span className="text-sm font-medium">Projects</span>
+                  <span className="text-sm font-medium ml-[8px]">Projects</span>
                 </span>
                 <span className="h-8 w-8 flex items-center justify-center">
                   <svg
@@ -211,25 +211,19 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
               {projectsExpanded && (
                 <>
                   <div className="relative px-2 -mt-0.5">
-                    <div className="absolute left-[18px] top-0 bottom-0 w-px bg-gray-200" />
-                    <ul className="space-y-0.5 pl-6">
+                    <div className="absolute left-[25px] top-0 bottom-0 w-px bg-gray-300" />
+                    <ul className="space-y-1 pl-6">
                       {projects.map((p) => (
                         <li key={p.id} className="relative">
                           <div className="rounded">
                             <button
-                              className="w-full relative flex items-center rounded px-2 py-1.5 text-sm hover:bg-gray-100"
+                              className="group w-full relative flex items-center rounded px-2 py-1.5 text-sm"
                               onClick={() => selectCategory(p)}
                             >
-                              <span className="pointer-events-none absolute -left-[10px] inset-y-0 w-5">
-                                <svg
-                                  viewBox="0 0 20 100"
-                                  preserveAspectRatio="none"
-                                  className="h-full w-full text-gray-300"
-                                >
-                                  <path d="M0 50 C6 35 10 65 20 50" stroke="currentColor" strokeWidth="1.25" fill="none" />
-                                </svg>
+                              <span className="pointer-events-none absolute -left-[7px] top-[calc(50%-20px)] h-5 w-3">
+                                <span className="block h-full w-full border-l border-b border-gray-300 rounded-bl-[14px]" />
                               </span>
-                              <span className="block truncate text-left">{overrides[p.id]?.name || p.name}</span>
+                              <span className="block truncate text-left ml-1 px-2 py-1 rounded group-hover:bg-gray-100">{overrides[p.id]?.name || p.name}</span>
                             </button>
                           </div>
                         </li>
