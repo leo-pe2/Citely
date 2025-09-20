@@ -27,6 +27,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   
   const [overrides, setOverrides] = useState<Record<string, { name?: string; color?: string }>>({})
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [projectsExpanded, setProjectsExpanded] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem('projects-expanded')
@@ -63,6 +64,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
         setProjects(items)
         const lastView = localStorage.getItem('last-view')
         if (lastView === 'home') {
+          setSelectedCategoryId(null)
           onSelectHome?.()
           return
         }
@@ -70,6 +72,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
         if (lastId) {
           const found = items.find((p) => p.id === lastId)
           if (found) {
+            setSelectedCategoryId(found.id)
             onSelectCategory?.(found)
           }
         }
@@ -131,6 +134,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
 
   function selectCategory(category: SidebarProject) {
     localStorage.setItem('last-category-id', category.id)
+    setSelectedCategoryId(category.id)
     onSelectCategory?.(category)
   }
 
@@ -183,7 +187,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
               </div>
 
               <button
-                className="w-full flex items-center justify-between px-4 py-2 rounded hover:bg-gray-100"
+                className="flex items-center justify-between w-[208px] h-14 px-4 rounded-xl hover:bg-gray-100 mx-auto"
                 onClick={() => setProjectsExpanded((v) => !v)}
                 aria-expanded={projectsExpanded}
               >
@@ -210,20 +214,20 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
 
               {projectsExpanded && (
                 <>
-                  <div className="relative px-2 -mt-0.5">
+                  <div className="relative w-[208px] mx-auto px-[9px] -mt-0.5">
                     <div className="absolute left-[25px] top-0 bottom-0 w-px bg-gray-300" />
                     <ul className="space-y-1 pl-6">
                       {projects.map((p) => (
                         <li key={p.id} className="relative">
                           <div className="rounded">
-                            <button
-                              className="group w-full relative flex items-center rounded px-2 py-1.5 text-sm"
+                              <button
+                                className={`group relative flex items-center w-[158px] h-9 rounded-xl px-2 text-sm before:content-[''] before:absolute before:inset-y-0 before:-right-[17px] before:left-1 before:rounded-xl before:transition-colors ${selectedCategoryId === p.id ? 'before:bg-gray-100' : 'before:bg-transparent hover:before:bg-gray-100'}`}
                               onClick={() => selectCategory(p)}
                             >
-                              <span className="pointer-events-none absolute -left-[7px] top-[calc(50%-20px)] h-5 w-3">
+                              <span className="pointer-events-none absolute -left-[8px] top-[calc(50%-18px)] h-5 w-3">
                                 <span className="block h-full w-full border-l border-b border-gray-300 rounded-bl-[14px]" />
                               </span>
-                              <span className="block truncate text-left ml-1 px-2 py-1 rounded group-hover:bg-gray-100">{overrides[p.id]?.name || p.name}</span>
+                              <span className="relative z-10 block truncate text-left ml-1 px-2">{overrides[p.id]?.name || p.name}</span>
                             </button>
                           </div>
                         </li>
