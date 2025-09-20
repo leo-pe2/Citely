@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import workspaceIcon from '../assets/sidebar/workspace.svg'
 import chevronSelector from '../assets/sidebar/chevron-selector.svg'
 import homeIcon from '../assets/sidebar/home.svg'
 import chevronLeft from '../assets/sidebar/chevron-left.svg'
@@ -146,19 +145,10 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
       transition={{ type: 'spring', stiffness: 300, damping: 26, mass: 0.4 }}
       className={`relative min-h-screen border-r border-gray-200 bg-white flex flex-col pt-13.5`}
     >
-      <div className={`relative h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-4 mt-0`}>
-        {isOpen ? (
-          <div className="flex-1 overflow-hidden">
-            <div className="flex items-center gap-2">
-              <img src={workspaceIcon} alt="Workspace" className="h-5 w-5" />
-              <span className="text-base font-medium">Workspace</span>
-            </div>
-          </div>
-        ) : null}
-      </div>
+      {/* Header removed to bring nav up */}
       {/* Edge toggle button aligned with header center */}
       <button
-        className="absolute top-[calc(3rem/2+56px)] -translate-y-1/2 -right-[14px] h-7 w-7 rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm hover:bg-gray-50 flex items-center justify-center z-20"
+        className="absolute top-[80px] -translate-y-1/2 -right-[14px] h-7 w-7 rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm hover:bg-gray-50 flex items-center justify-center z-20"
         aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
         aria-expanded={isOpen}
         title={isOpen ? 'Close sidebar' : 'Open sidebar'}
@@ -169,8 +159,8 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
 
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-auto">
-          {isOpen && (
-            <div>
+            {isOpen && (
+             <div className="mt-0.2">
               <div className="px-0 py-0">
                 <button
                   className="flex items-center justify-between w-[208px] h-14 px-4 rounded-xl hover:bg-gray-100 mx-auto"
