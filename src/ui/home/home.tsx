@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Sidebar from '../components/sidebar'
+import HomePage from '../homepage/homepage'
 import CategoryView from '../components/category-view'
 import SplitPdf from '../pdf view/split-pdf'
 
@@ -10,6 +11,13 @@ function Home() {
     path: string
     fileName: string
   } | null>(null)
+  const [showHome, setShowHome] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('last-view') === 'home'
+    } catch {
+      return false
+    }
+  })
 
   React.useEffect(() => {
     function onDeleted(e: Event) {
@@ -35,7 +43,20 @@ function Home() {
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-white">
       <div className="fixed top-0 left-0 right-0 h-10 bg-white app-drag" />
-      {!splitContext && <Sidebar onSelectCategory={(c) => setSelected(c)} />}
+      {!splitContext && (
+        <Sidebar
+          onSelectCategory={(c) => {
+            setShowHome(false)
+            try { localStorage.setItem('last-view', 'category') } catch {}
+            setSelected(c)
+          }}
+          onSelectHome={() => {
+            setSelected(null)
+            setShowHome(true)
+            try { localStorage.setItem('last-view', 'home') } catch {}
+          }}
+        />
+      )}
       <main className="flex-1 min-w-0 w-full h-full min-h-0 pt-10">
         {splitContext ? (
           <SplitPdf
@@ -44,6 +65,8 @@ function Home() {
             path={splitContext.path}
             fileName={splitContext.fileName}
           />
+        ) : showHome ? (
+          <HomePage />
         ) : selected ? (
           <CategoryView id={selected.id} name={selected.name} />
         ) : null}

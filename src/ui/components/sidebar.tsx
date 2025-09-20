@@ -2,16 +2,18 @@ import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import openIcon from '../assets/panel-right-open.svg'
 import closeIcon from '../assets/panel-right-close.svg'
-import folderPlusIcon from '../assets/sidebar/folder-plus.svg'
-import folderIconRaw from '../assets/sidebar/folder.svg?raw'
-import folderOpenIconRaw from '../assets/sidebar/folder-open.svg?raw'
+import workspaceIcon from '../assets/sidebar/workspace.svg'
+import chevronSelector from '../assets/sidebar/chevron-selector.svg'
+import homeIcon from '../assets/sidebar/home.svg'
 import CreateProjectModal from './sidebar-popups/create-project'
+import categoryIcon from '../assets/sidebar/category-svgrepo-com.svg'
 
 type SidebarProps = {
   onSelectCategory?: (c: { id: string; name: string; path: string }) => void
+  onSelectHome?: () => void
 }
 
-function Sidebar({ onSelectCategory }: SidebarProps) {
+function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   const [isOpen, setIsOpen] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem('sidebar-open')
@@ -24,9 +26,15 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
   const [projects, setProjects] = useState<SidebarProject[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   
-  const [hoveredIconId, setHoveredIconId] = useState<string | null>(null)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [overrides, setOverrides] = useState<Record<string, { name?: string; color?: string }>>({})
+  const [projectsExpanded, setProjectsExpanded] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('projects-expanded')
+      return stored === null ? true : stored === 'true'
+    } catch {
+      return true
+    }
+  })
 
   const OPEN_WIDTH = 256
   const CLOSED_WIDTH = 56
@@ -40,6 +48,12 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
   }, [isOpen])
 
   useEffect(() => {
+    try {
+      localStorage.setItem('projects-expanded', projectsExpanded ? 'true' : 'false')
+    } catch {}
+  }, [projectsExpanded])
+
+  useEffect(() => {
     const api = (window as unknown as {
       api?: { projects: { list: () => Promise<SidebarProject[]> } }
     }).api
@@ -47,11 +61,15 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
       .list()
       .then((items: SidebarProject[]) => {
         setProjects(items)
+        const lastView = localStorage.getItem('last-view')
+        if (lastView === 'home') {
+          onSelectHome?.()
+          return
+        }
         const lastId = localStorage.getItem('last-category-id')
         if (lastId) {
           const found = items.find((p) => p.id === lastId)
           if (found) {
-            setSelectedCategoryId(found.id)
             onSelectCategory?.(found)
           }
         }
@@ -113,7 +131,6 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
 
   function selectCategory(category: SidebarProject) {
     localStorage.setItem('last-category-id', category.id)
-    setSelectedCategoryId(category.id)
     onSelectCategory?.(category)
   }
 
@@ -129,8 +146,9 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
       <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-4 mt-0`}>
         {isOpen ? (
           <div className="flex-1 overflow-hidden">
-            <div className="text-sm font-medium truncate pl-0">
-              My Library
+            <div className="flex items-center gap-2">
+              <img src={workspaceIcon} alt="Workspace" className="h-5 w-5" />
+              <span className="text-base font-medium">Workspace</span>
             </div>
           </div>
         ) : null}
@@ -150,44 +168,99 @@ function Sidebar({ onSelectCategory }: SidebarProps) {
         <div className="h-full overflow-auto">
           {isOpen && (
             <div>
-              <div className="px-2 py-1.5 mb-0">
+              <div className="px-0 py-0">
                 <button
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
-                  onClick={() => setIsCreateOpen(true)}
+                  className="w-full flex items-center justify-between px-4 py-2 rounded hover:bg-gray-100"
+                  type="button"
+                  onClick={() => onSelectHome?.()}
                 >
-                  <img src={folderPlusIcon} alt="" className="h-4 w-4" />
-                  <span className="whitespace-nowrap">New Category</span>
+                  <span className="flex items-center gap-2">
+                    <img src={homeIcon} alt="" className="h-5 w-5" />
+                    <span className="text-sm font-medium">Home</span>
+                  </span>
+                  <span className="h-8 w-8" />
                 </button>
               </div>
 
-              <ul className="space-y-0.5 px-2 -mt-0.5">
-                {projects.map((p) => (
-                  <li key={p.id}>
-                    <div className="rounded">
-                      <button
-                        className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-100"
-                        onClick={() => selectCategory(p)}
+              <button
+                className="w-full flex items-center justify-between px-4 py-2 rounded hover:bg-gray-100"
+                onClick={() => setProjectsExpanded((v) => !v)}
+                aria-expanded={projectsExpanded}
+              >
+                <span className="flex items-center gap-2">
+                  <img src={categoryIcon} alt="" className="h-5 w-5" />
+                  <span className="text-sm font-medium">Projects</span>
+                </span>
+                <span className="h-8 w-8 flex items-center justify-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`h-5 w-5 transition-transform ${projectsExpanded ? 'transform rotate-90' : ''}`}
+                    aria-hidden="true"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </span>
+              </button>
+
+              {projectsExpanded && (
+                <>
+                  <div className="relative px-2 -mt-0.5">
+                    <div className="absolute left-[18px] top-0 bottom-0 w-px bg-gray-200" />
+                    <ul className="space-y-0.5 pl-6">
+                      {projects.map((p) => (
+                        <li key={p.id} className="relative">
+                          <div className="rounded">
+                            <button
+                              className="w-full relative flex items-center rounded px-2 py-1.5 text-sm hover:bg-gray-100"
+                              onClick={() => selectCategory(p)}
+                            >
+                              <span className="pointer-events-none absolute -left-[10px] inset-y-0 w-5">
+                                <svg
+                                  viewBox="0 0 20 100"
+                                  preserveAspectRatio="none"
+                                  className="h-full w-full text-gray-300"
+                                >
+                                  <path d="M0 50 C6 35 10 65 20 50" stroke="currentColor" strokeWidth="1.25" fill="none" />
+                                </svg>
+                              </span>
+                              <span className="block truncate text-left">{overrides[p.id]?.name || p.name}</span>
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="px-2 py-2">
+                    <button
+                      className="flex w-full items-center justify-center rounded px-2 py-2 hover:bg-gray-200 bg-gray-100"
+                      onClick={() => setIsCreateOpen(true)}
+                      aria-label="Create new category"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-4 w-4 text-gray-500"
+                        aria-hidden="true"
                       >
-                        <div
-                          role="button"
-                          className="h-4 w-4 cursor-pointer"
-                          onMouseEnter={() => setHoveredIconId(p.id)}
-                          onMouseLeave={() => setHoveredIconId(null)}
-                          dangerouslySetInnerHTML={{
-                            __html: normalizeSvg(
-                              hoveredIconId === p.id || selectedCategoryId === p.id
-                                ? folderOpenIconRaw
-                                : folderIconRaw
-                            ),
-                          }}
-                          style={{ color: overrides[p.id]?.color || '#000000', lineHeight: 0 }}
-                        />
-                        <span className="block truncate text-left">{overrides[p.id]?.name || p.name}</span>
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

@@ -224,7 +224,7 @@ app.on('ready', () => {
         ...(process.platform === 'darwin'
             ? {
                 titleBarStyle: 'hidden' as const,
-                titleBarOverlay: { color: '#ffffff', symbolColor: '#000000', height: 40 },
+                titleBarOverlay: { color: '#ffffff', symbolColor: '#000000', height: 28 },
               }
             : {}),
         webPreferences: {

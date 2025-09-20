@@ -10,7 +10,7 @@ type AddedItemProps = {
 }
 
 type ProjectItem = { fileName: string; path: string }
-type ItemStatus = 'todo' | 'ongoing' | 'underReview' | 'done'
+type ItemStatus = 'todo' | 'ongoing' | 'done'
 
 export default function AddedItem({ projectId }: AddedItemProps) {
   const [items, setItems] = useState<ProjectItem[]>([])
@@ -73,7 +73,12 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         }).api
         const saved = await api?.projects.kanban?.get?.(projectId)
         if (!mounted || !saved) return
-        setPathToStatus((prev) => ({ ...prev, ...(saved as Record<string, ItemStatus>) }))
+        // Migrate any legacy 'underReview' statuses to 'ongoing'
+        const migrated: Record<string, ItemStatus> = {}
+        for (const [k, v] of Object.entries(saved)) {
+          migrated[k] = (v as any) === 'underReview' ? 'ongoing' : (v as ItemStatus)
+        }
+        setPathToStatus((prev) => ({ ...prev, ...migrated }))
       } catch {}
     }
     loadStatuses()
@@ -157,7 +162,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     if (!overId) return
     // Droppable ids are the status values
     const target = overId as ItemStatus
-    if (target === 'todo' || target === 'ongoing' || target === 'underReview' || target === 'done') {
+    if (target === 'todo' || target === 'ongoing' || target === 'done') {
       setPathToStatus((prev) => ({ ...prev, [path]: target }))
     }
   }
@@ -179,7 +184,6 @@ export default function AddedItem({ projectId }: AddedItemProps) {
 
   const todoItems = items.filter((it) => (pathToStatus[it.path] ?? 'todo') === 'todo')
   const ongoingItems = items.filter((it) => pathToStatus[it.path] === 'ongoing')
-  const underReviewItems = items.filter((it) => pathToStatus[it.path] === 'underReview')
   const doneItems = items.filter((it) => pathToStatus[it.path] === 'done')
 
   function formatCount(n: number): string {
@@ -270,7 +274,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         onDragStart={onDragStart}
         onDragOver={(event) => {
           const id = event.over?.id ? String(event.over.id) : null
-          if (id === 'todo' || id === 'ongoing' || id === 'underReview' || id === 'done') {
+          if (id === 'todo' || id === 'ongoing' || id === 'done') {
             setOverStatus(id)
           } else {
             setOverStatus(null)
@@ -279,7 +283,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
-        <div className="grid grid-cols-4 gap-6 items-start">
+        <div className="grid grid-cols-3 gap-6 items-start">
           <div className="flex flex-col">
             <div className="w-full bg-gray-100/60 rounded-xl p-3">
               <div className="mb-3 flex items-center gap-2">
@@ -297,32 +301,16 @@ export default function AddedItem({ projectId }: AddedItemProps) {
             </div>
           </div>
           <div className="flex flex-col">
-            <div className="w-full bg-[#fcbf49]/30 rounded-xl p-3">
+            <div className="w-full bg-[#f77f00]/30 rounded-xl p-3">
               <div className="mb-3 flex items-center gap-2">
-                <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#fcbf49]/60">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full mr-2" style={{ backgroundColor: '#fcbf49' }} />
+                <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#f77f00]/45">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full mr-2" style={{ backgroundColor: '#f77f00' }} />
                   Ongoing
                 </div>
                 <span className="text-sm text-gray-600">{formatCount(ongoingItems.length)}</span>
               </div>
               <DroppableColumn id="ongoing" itemCount={ongoingItems.length}>
                 {ongoingItems.map((it) => (
-                  <DraggableCard key={it.path} it={it} bgClass="bg-[#fcbf49]/60" />
-                ))}
-              </DroppableColumn>
-            </div>
-          </div>
-          <div className="flex flex-col">
-            <div className="w-full bg-[#f77f00]/30 rounded-xl p-3">
-              <div className="mb-3 flex items-center gap-2">
-                <div className="inline-flex items-center text-sm font-medium text-gray-700 rounded-full px-2 py-1 bg-[#f77f00]/45">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full mr-2" style={{ backgroundColor: '#f77f00' }} />
-                  Under Review
-                </div>
-                <span className="text-sm text-gray-600">{formatCount(underReviewItems.length)}</span>
-              </div>
-              <DroppableColumn id="underReview" itemCount={underReviewItems.length}>
-                {underReviewItems.map((it) => (
                   <DraggableCard key={it.path} it={it} bgClass="bg-[#f77f00]/45" />
                 ))}
               </DroppableColumn>
@@ -355,8 +343,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
                 height: activeSize?.height,
                 background: (() => {
                   const status = overStatus ?? (pathToStatus[activePath] ?? 'todo')
-                  if (status === 'ongoing') return '#fcbf49' + '99' // ~60%
-                  if (status === 'underReview') return '#f77f00' + '73' // ~45%
+                  if (status === 'ongoing') return '#f77f00' + '73' // ~45%
                   if (status === 'done') return '#4c956c' + '73' // ~45%
                   return 'rgba(229, 231, 235, 0.6)'
                 })(),
