@@ -143,12 +143,12 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
       initial={false}
       animate={{ width: isOpen ? OPEN_WIDTH : CLOSED_WIDTH }}
       transition={{ type: 'spring', stiffness: 300, damping: 26, mass: 0.4 }}
-      className={`relative min-h-screen border-r border-gray-200 bg-white flex flex-col pt-13.5`}
+      className={`relative mt-10 min-h-[calc(100vh-2.5rem)] border-r border-gray-200 bg-white flex flex-col pt-0`}
     >
       {/* Header removed to bring nav up */}
       {/* Edge toggle button aligned with header center */}
       <button
-        className="absolute top-[80px] -translate-y-1/2 -right-[14px] h-7 w-7 rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm hover:bg-gray-50 flex items-center justify-center z-20"
+        className="absolute top-[41px] -translate-y-1/2 -right-[14px] h-7 w-7 rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm hover:bg-gray-50 flex items-center justify-center z-20"
         aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
         aria-expanded={isOpen}
         title={isOpen ? 'Close sidebar' : 'Open sidebar'}
@@ -159,8 +159,8 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
 
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-auto">
-            {isOpen && (
-             <div className="mt-0.2">
+          {isOpen && (
+            <div className="mt-3">
               <div className="px-0 py-0">
                 <button
                   className="flex items-center justify-between w-[208px] h-14 px-4 rounded-xl hover:bg-gray-100 mx-auto"
@@ -176,7 +176,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
               </div>
 
               <button
-                className="flex items-center justify-between w-[208px] h-14 px-4 rounded-xl hover:bg-gray-100 mx-auto"
+                className="relative z-0 flex items-center justify-between w-[208px] h-14 px-4 rounded-xl mx-auto before:content-[''] before:absolute before:left-0 before:right-0 before:top-0 before:bottom-[4px] before:rounded-xl before:-z-10 before:bg-transparent before:pointer-events-none hover:before:bg-gray-100"
                 onClick={() => setProjectsExpanded((v) => !v)}
                 aria-expanded={projectsExpanded}
               >
