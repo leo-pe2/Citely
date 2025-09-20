@@ -221,9 +221,9 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
         />
       </div>
 
-      <hr className="border-t border-gray-200 my-4" />
+      <hr className="border-t border-gray-200 my-1.5" />
 
-      <div className="flex-1 w-full mt-2">
+      <div className="flex-1 w-full mt-3">
         {activePage === 'kanban' ? (
           <div className="w-full">
             <AddedItem projectId={id} />

@@ -26,6 +26,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   
   const [overrides, setOverrides] = useState<Record<string, { name?: string; color?: string }>>({})
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [isHomeActive, setIsHomeActive] = useState<boolean>(false)
   const [projectsExpanded, setProjectsExpanded] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem('projects-expanded')
@@ -63,6 +64,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
         const lastView = localStorage.getItem('last-view')
         if (lastView === 'home') {
           setSelectedCategoryId(null)
+          setIsHomeActive(true)
           onSelectHome?.()
           return
         }
@@ -71,6 +73,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
           const found = items.find((p) => p.id === lastId)
           if (found) {
             setSelectedCategoryId(found.id)
+            setIsHomeActive(false)
             onSelectCategory?.(found)
           }
         }
@@ -133,6 +136,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   function selectCategory(category: SidebarProject) {
     localStorage.setItem('last-category-id', category.id)
     setSelectedCategoryId(category.id)
+    setIsHomeActive(false)
     onSelectCategory?.(category)
   }
 
@@ -161,11 +165,11 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
         <div className="h-full overflow-auto">
           {isOpen && (
             <div className="mt-3">
-              <div className="px-0 py-0">
+              <div className="px-0 py-0 mb-1">
                 <button
-                  className="flex items-center justify-between w-[208px] h-14 px-4 rounded-xl hover:bg-gray-100 mx-auto"
+                  className={`relative z-0 flex items-center justify-between w-[208px] h-14 px-4 rounded-xl mx-auto before:content-[''] before:absolute before:inset-0 before:rounded-xl before:-z-10 ${isHomeActive ? 'before:bg-gray-300/20' : 'before:bg-transparent hover:before:bg-gray-100'}`}
                   type="button"
-                  onClick={() => onSelectHome?.()}
+                  onClick={() => { setSelectedCategoryId(null); setIsHomeActive(true); localStorage.setItem('last-view', 'home'); onSelectHome?.(); }}
                 >
                   <span className="flex items-center gap-2">
                     <img src={homeIcon} alt="" className="h-5 w-5" />
@@ -203,8 +207,8 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
 
               {projectsExpanded && (
                 <>
-                  <div className="relative w-[208px] mx-auto px-[9px] -mt-0.5">
-                    <div className="absolute left-[25px] top-0 bottom-[27px] w-px bg-gray-300" />
+                  <div className="relative w-[208px] mx-auto px-[9px] mt-0.8">
+                    <div className="absolute left-[25px] top-[-4px] bottom-[27px] w-px bg-gray-300" />
                     <ul className="space-y-1 pl-6">
                     {projects.map((p) => (
                         <li key={p.id} className="relative">
@@ -226,7 +230,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
                           <button
                             className="relative flex items-center w-[158px] h-9 rounded-xl px-2 text-sm before:content-[''] before:absolute before:inset-y-0 before:-right-[17px] before:left-1 before:rounded-xl before:bg-gray-300/20 before:transition-colors"
                             onClick={() => setIsCreateOpen(true)}
-                            aria-label="Create new category"
+                            aria-label="Create new project"
                           >
                             <span className="pointer-events-none absolute -left-[8px] top-[calc(50%-18px)] h-5 w-3">
                               <span className="block h-full w-full border-l border-b border-gray-300 rounded-bl-[14px]" />
@@ -262,8 +266,8 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onCreate={handleCreateProject}
-        title="Create New Category"
-        placeholder="Category name"
+        title="Project name"
+        placeholder="Math"
       />
       
     </motion.aside>

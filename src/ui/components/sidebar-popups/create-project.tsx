@@ -8,7 +8,7 @@ type CreateProjectModalProps = {
   placeholder?: string
 }
 
-export default function CreateProjectModal({ isOpen, onClose, onCreate, title = 'Create New Category', placeholder = 'Category name' }: CreateProjectModalProps) {
+export default function CreateProjectModal({ isOpen, onClose, onCreate, title = 'Create New Project', placeholder = 'Enter name' }: CreateProjectModalProps) {
   const [name, setName] = useState('')
 
   useEffect(() => {
