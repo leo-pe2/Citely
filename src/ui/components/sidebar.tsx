@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import openIcon from '../assets/panel-right-open.svg'
-import closeIcon from '../assets/panel-right-close.svg'
 import workspaceIcon from '../assets/sidebar/workspace.svg'
 import chevronSelector from '../assets/sidebar/chevron-selector.svg'
 import homeIcon from '../assets/sidebar/home.svg'
+import chevronLeft from '../assets/sidebar/chevron-left.svg'
 import CreateProjectModal from './sidebar-popups/create-project'
 import categoryIcon from '../assets/sidebar/category-svgrepo-com.svg'
 
@@ -145,9 +144,9 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
       initial={false}
       animate={{ width: isOpen ? OPEN_WIDTH : CLOSED_WIDTH }}
       transition={{ type: 'spring', stiffness: 300, damping: 26, mass: 0.4 }}
-      className={`min-h-screen border-r border-gray-200 bg-white flex flex-col pt-13.5`}
+      className={`relative min-h-screen border-r border-gray-200 bg-white flex flex-col pt-13.5`}
     >
-      <div className={`h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-4 mt-0`}>
+      <div className={`relative h-12 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} px-4 mt-0`}>
         {isOpen ? (
           <div className="flex-1 overflow-hidden">
             <div className="flex items-center gap-2">
@@ -156,17 +155,17 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
             </div>
           </div>
         ) : null}
-
-        <button
-          className="h-8 w-8 flex items-center justify-center rounded hover:bg-gray-100"
-          aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
-          aria-expanded={isOpen}
-          title={isOpen ? 'Close sidebar' : 'Open sidebar'}
-          onClick={() => setIsOpen((v) => !v)}
-        >
-          <img src={isOpen ? closeIcon : openIcon} alt="" className="h-5 w-5 shrink-0" />
-        </button>
       </div>
+      {/* Edge toggle button aligned with header center */}
+      <button
+        className="absolute top-[calc(3rem/2+56px)] -translate-y-1/2 -right-[14px] h-7 w-7 rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm hover:bg-gray-50 flex items-center justify-center z-20"
+        aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
+        aria-expanded={isOpen}
+        title={isOpen ? 'Close sidebar' : 'Open sidebar'}
+        onClick={() => setIsOpen((v) => !v)}
+      >
+        <img src={chevronLeft} alt="" className={`h-4 w-4 ${isOpen ? '' : 'rotate-180'} select-none pointer-events-none`} />
+      </button>
 
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-auto">
@@ -174,13 +173,13 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
             <div>
               <div className="px-0 py-0">
                 <button
-                  className="w-full flex items-center justify-between px-4 py-2 rounded hover:bg-gray-100"
+                  className="flex items-center justify-between w-[208px] h-14 px-4 rounded-xl hover:bg-gray-100 mx-auto"
                   type="button"
                   onClick={() => onSelectHome?.()}
                 >
                   <span className="flex items-center gap-2">
                     <img src={homeIcon} alt="" className="h-5 w-5" />
-                    <span className="text-sm font-medium">Home</span>
+                    <span className="text-sm font-medium ml-[8px]">Home</span>
                   </span>
                   <span className="h-8 w-8" />
                 </button>
