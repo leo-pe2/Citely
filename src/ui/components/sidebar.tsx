@@ -180,7 +180,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
               </div>
 
               <button
-                className="relative z-0 flex items-center justify-between w-[208px] h-14 px-4 rounded-xl mx-auto before:content-[''] before:absolute before:left-0 before:right-0 before:top-0 before:bottom-[4px] before:rounded-xl before:-z-10 before:bg-transparent before:pointer-events-none hover:before:bg-gray-100"
+                className={`relative z-0 flex items-center justify-between w-[208px] h-14 px-4 rounded-xl mx-auto before:content-[''] before:absolute before:left-0 before:right-0 before:top-0 before:bottom-[4px] before:rounded-xl before:-z-10 before:pointer-events-none ${projectsExpanded ? 'before:bg-gray-300/20' : 'before:bg-transparent hover:before:bg-gray-100'}`}
                 onClick={() => setProjectsExpanded((v) => !v)}
                 aria-expanded={projectsExpanded}
               >

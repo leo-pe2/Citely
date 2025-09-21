@@ -9,7 +9,7 @@ type CategoryViewProps = {
   name: string
 }
 
-type ProjectOverrides = Record<string, { name?: string; color?: string; description?: string }>
+type ProjectOverrides = Record<string, { name?: string; description?: string }>
 
 function readOverrides(): ProjectOverrides {
   try {
@@ -29,7 +29,6 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const [selectedColor, setSelectedColor] = useState<string>(() => readOverrides()[id]?.color ?? '#000000')
   const [description, setDescription] = useState<string>(() => readOverrides()[id]?.description ?? '')
   const [hasItems, setHasItems] = useState<boolean>(false)
   const [activePage, setActivePage] = useState<'kanban' | 'notes'>('kanban')
@@ -59,7 +58,6 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
 
   useEffect(() => {
     function onOverridesChanged() {
-      setSelectedColor(readOverrides()[id]?.color ?? '#000000')
       setDescription(readOverrides()[id]?.description ?? '')
     }
     window.addEventListener('project-overrides:changed', onOverridesChanged)
@@ -70,7 +68,6 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
 
   // Keep local selection in sync when switching categories or opening the menu
   useEffect(() => {
-    setSelectedColor(readOverrides()[id]?.color ?? '#000000')
     setDescription(readOverrides()[id]?.description ?? '')
   }, [id, menuOpen])
 
@@ -82,14 +79,6 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
     writeOverrides(next)
   }
 
-  function updateColor(color: string) {
-    setSelectedColor(color)
-    const o = readOverrides()
-    const prev = o[id] || {}
-    const next: ProjectOverrides = { ...o, [id]: { ...prev, color } }
-    writeOverrides(next)
-  }
-
   function updateDescription(nextText: string) {
     const trimmed = nextText.replace(/\n/g, '').slice(0, 40)
     setDescription(trimmed)
@@ -98,8 +87,6 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
     const next: ProjectOverrides = { ...o, [id]: { ...prev, description: trimmed || undefined } }
     writeOverrides(next)
   }
-
-  const colors = ['#000000', '#5fa8d3', '#d62828', '#f77f00', '#fcbf49']
 
   async function handleDeleteCategory() {
     try {
@@ -188,22 +175,6 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
                       onChange={(e) => updateName(e.target.value)}
                       placeholder="Enter name"
                     />
-                  </div>
-                  <div>
-                    <div className="block text-xs text-black/70 mb-1">Folder color</div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {colors.map((c) => (
-                        <button
-                          key={c}
-                          className={`w-6 h-6 rounded-full border ${
-                            selectedColor === c ? 'border-black/40 ring-2 ring-white/40' : 'border-white/20 hover:border-white'
-                          }`}
-                          style={{ backgroundColor: c }}
-                          onClick={() => updateColor(c)}
-                          aria-label={`Set color ${c}`}
-                        />
-                      ))}
-                    </div>
                   </div>
                 </div>
               </div>
