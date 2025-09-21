@@ -165,6 +165,19 @@ async function writeHighlights(projectId: string, pdfFileName: string, highlight
     await fs.mkdir(hlDir, { recursive: true });
     const storeFile = path.join(hlDir, `${pdfFileName}.json`);
     await fs.writeFile(storeFile, JSON.stringify(highlights ?? [], null, 2), 'utf-8');
+    // Auto-promote kanban status to 'ongoing' if there are any highlights/screenshots for this PDF
+    try {
+        if (Array.isArray(highlights) && highlights.length > 0) {
+            const absolutePdfPath = path.join(projectDir, pdfFileName);
+            const current = await readKanbanStatuses(projectId);
+            const currentStatus = current[absolutePdfPath];
+            // Only promote if currently 'todo' or unset; never override explicit 'done'
+            if (!currentStatus || currentStatus === 'todo') {
+                current[absolutePdfPath] = 'ongoing';
+                await writeKanbanStatuses(projectId, current);
+            }
+        }
+    } catch {}
     return { ok: true };
 }
 
@@ -320,6 +333,29 @@ app.on('ready', () => {
         return readKanbanStatuses(projectId);
     });
     ipcMain.handle('projects:kanban:set', async (_event, projectId: string, statuses: Record<string, string>) => {
+        // Prevent moving a PDF back to 'todo' if it already has any highlights/screenshots
+        try {
+            const root = await ensureProjectsRoot();
+            const projectDir = path.join(root, projectId);
+            const hlDir = path.join(projectDir, 'highlights');
+            // Sanitize incoming statuses in-place
+            for (const [absolutePath, desired] of Object.entries(statuses || {})) {
+                if (desired !== 'todo') continue;
+                const pdfBaseName = path.basename(absolutePath); // e.g. MyDoc.pdf
+                const storeFile = path.join(hlDir, `${pdfBaseName}.json`);
+                let hasAny = false;
+                try {
+                    if (existsSync(storeFile)) {
+                        const text = await fs.readFile(storeFile, 'utf-8');
+                        const parsed = JSON.parse(text);
+                        hasAny = Array.isArray(parsed) && parsed.length > 0;
+                    }
+                } catch {}
+                if (hasAny) {
+                    statuses[absolutePath] = 'ongoing';
+                }
+            }
+        } catch {}
         return writeKanbanStatuses(projectId, statuses);
     });
     // Highlights IPC

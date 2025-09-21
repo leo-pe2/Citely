@@ -11,10 +11,12 @@ type AddedItemProps = {
 
 type ProjectItem = { fileName: string; path: string }
 type ItemStatus = 'todo' | 'ongoing' | 'done'
+type PathHasHighlights = Record<string, boolean>
 
 export default function AddedItem({ projectId }: AddedItemProps) {
   const [items, setItems] = useState<ProjectItem[]>([])
   const [pathToStatus, setPathToStatus] = useState<Record<string, ItemStatus>>({})
+  const [pathHasHighlights, setPathHasHighlights] = useState<PathHasHighlights>({})
   const [activePath, setActivePath] = useState<string | null>(null)
   const [activeSize, setActiveSize] = useState<{ width: number; height: number } | null>(null)
   const [activeTitleWidth, setActiveTitleWidth] = useState<number | null>(null)
@@ -59,9 +61,49 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     }
   }
 
+  // Determine if each item already has any highlights/screenshots saved
+  async function refreshHasHighlights() {
+    try {
+      const api = (window as unknown as {
+        api?: { projects: { highlights?: { get?: (projectId: string, pdfFileName: string) => Promise<any[]> } } }
+      }).api
+      if (!api?.projects.highlights?.get) return
+      const pairs = await Promise.all(
+        items.map(async (it) => {
+          try {
+            const arr = await api.projects.highlights!.get!(projectId, it.fileName)
+            const hasAny = Array.isArray(arr) && arr.length > 0
+            return [it.path, hasAny] as const
+          } catch {
+            return [it.path, false] as const
+          }
+        })
+      )
+      const map: PathHasHighlights = {}
+      for (const [p, has] of pairs) map[p] = has
+      setPathHasHighlights(map)
+      // Promote any TODO -> ONGOING for items that have highlights
+      setPathToStatus((prev) => {
+        const next = { ...prev }
+        for (const [p, has] of Object.entries(map)) {
+          if (has && next[p] === 'todo') next[p] = 'ongoing'
+        }
+        return next
+      })
+    } catch {}
+  }
+
   useEffect(() => {
     fetchItems()
   }, [projectId])
+
+  useEffect(() => {
+    if (items.length > 0) {
+      refreshHasHighlights()
+    } else {
+      setPathHasHighlights({})
+    }
+  }, [items, projectId])
 
   // Load persisted kanban statuses
   useEffect(() => {
@@ -161,7 +203,11 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     setOverStatus(null)
     if (!overId) return
     // Droppable ids are the status values
-    const target = overId as ItemStatus
+    let target = overId as ItemStatus
+    // Prevent moving back to 'todo' if there are any highlights/screenshots
+    if (target === 'todo' && pathHasHighlights[path]) {
+      target = 'ongoing'
+    }
     if (target === 'todo' || target === 'ongoing' || target === 'done') {
       setPathToStatus((prev) => ({ ...prev, [path]: target }))
     }

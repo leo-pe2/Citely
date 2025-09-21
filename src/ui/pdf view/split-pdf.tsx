@@ -105,6 +105,20 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       console.log('[PDF] saveHighlightsNow count=', nextHighlights.length)
       api.projects.highlights.set(projectId, fileName, nextHighlights)
       lastSavedSnapshotRef.current = JSON.stringify(nextHighlights)
+      // Promote kanban status immediately when any highlight/screenshot exists
+      if (Array.isArray(nextHighlights) && nextHighlights.length > 0 && api?.projects?.kanban?.get && api?.projects?.kanban?.set) {
+        ;(async () => {
+          try {
+            const current = (await api.projects.kanban.get(projectId)) || {}
+            const absolutePath: string = path
+            const existing = current[absolutePath]
+            if (!existing || existing === 'todo') {
+              current[absolutePath] = 'ongoing'
+              await api.projects.kanban.set(projectId, current)
+            }
+          } catch {}
+        })()
+      }
     } catch (e) {
       console.warn('[PDF] saveHighlightsNow failed', e)
     }
@@ -283,6 +297,20 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         console.log('[PDF] debounce-save highlights count=', rphHighlights.length)
         api.projects.highlights.set(projectId, fileName, rphHighlights)
         lastSavedSnapshotRef.current = JSON.stringify(rphHighlights)
+        // Also promote kanban on debounce save (no-op if already ongoing/done)
+        if (Array.isArray(rphHighlights) && rphHighlights.length > 0 && api?.projects?.kanban?.get && api?.projects?.kanban?.set) {
+          ;(async () => {
+            try {
+              const current = (await api.projects.kanban.get(projectId)) || {}
+              const absolutePath: string = path
+              const existing = current[absolutePath]
+              if (!existing || existing === 'todo') {
+                current[absolutePath] = 'ongoing'
+                await api.projects.kanban.set(projectId, current)
+              }
+            } catch {}
+          })()
+        }
       } catch (e) {
         console.warn('[PDF] debounce-save failed', e)
       }
