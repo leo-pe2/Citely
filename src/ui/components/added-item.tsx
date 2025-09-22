@@ -12,6 +12,7 @@ type AddedItemProps = {
 type ProjectItem = { fileName: string; path: string }
 type ItemStatus = 'todo' | 'ongoing' | 'done'
 type PathHasHighlights = Record<string, boolean>
+type PathToTitle = Record<string, string>
 
 export default function AddedItem({ projectId }: AddedItemProps) {
   const [items, setItems] = useState<ProjectItem[]>([])
@@ -35,6 +36,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     }
   })
   const [confirmingDelete, setConfirmingDelete] = useState<{ path: string; fileName: string } | null>(null)
+  const [pathToTitle, setPathToTitle] = useState<PathToTitle>({})
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -59,6 +61,29 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     } catch {
       setItems([])
     }
+  }
+
+  // Fetch PDF titles (from metadata); fallback is done in getDisplayNameForPath
+  async function refreshTitles() {
+    try {
+      const api = (window as unknown as {
+        api?: { projects: { items?: { getTitle?: (absolutePath: string) => Promise<{ title: string | null }> } } }
+      }).api
+      if (!api?.projects?.items?.getTitle) return
+      const entries = await Promise.all(
+        items.map(async (it) => {
+          try {
+            const res = await api.projects.items!.getTitle!(it.path)
+            return [it.path, (res?.title || '').trim()] as const
+          } catch {
+            return [it.path, ''] as const
+          }
+        })
+      )
+      const map: PathToTitle = {}
+      for (const [p, t] of entries) map[p] = t
+      setPathToTitle(map)
+    } catch {}
   }
 
   // Determine if each item already has any highlights/screenshots saved
@@ -100,8 +125,10 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   useEffect(() => {
     if (items.length > 0) {
       refreshHasHighlights()
+      refreshTitles()
     } else {
       setPathHasHighlights({})
+      setPathToTitle({})
     }
   }, [items, projectId])
 
@@ -225,7 +252,9 @@ export default function AddedItem({ projectId }: AddedItemProps) {
   function getDisplayNameForPath(path: string, fileName: string): string {
     const o = itemOverrides[path]
     const name = (o?.displayName ?? '').trim()
-    return name.length > 0 ? name : fileName
+    if (name.length > 0) return name
+    const metaTitle = (pathToTitle[path] ?? '').trim()
+    return metaTitle.length > 0 ? metaTitle : fileName
   }
 
   const todoItems = items.filter((it) => (pathToStatus[it.path] ?? 'todo') === 'todo')
@@ -255,7 +284,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         style={{ ...style }}
       >
         <div className="absolute left-3 right-3 top-4 flex items-center gap-2">
-          <div className="file-title text-sm text-gray-800 truncate w-1/2">{getDisplayNameForPath(it.path, it.fileName)}</div>
+          <div className="file-title text-sm text-gray-800 truncate flex-1 min-w-0">{getDisplayNameForPath(it.path, it.fileName)}</div>
           <div className={`flex items-center gap-1 ml-auto opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150`}>
             <button
               type="button"
@@ -341,7 +370,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
               </div>
               <DroppableColumn id="todo" itemCount={todoItems.length}>
                 {todoItems.map((it) => (
-                  <DraggableCard key={it.path} it={it} bgClass="bg-gray-200/60" />
+                  <DraggableCard key={it.path} it={it} bgClass="bg-gray-200" />
                 ))}
               </DroppableColumn>
             </div>
@@ -357,7 +386,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
               </div>
               <DroppableColumn id="ongoing" itemCount={ongoingItems.length}>
                 {ongoingItems.map((it) => (
-                  <DraggableCard key={it.path} it={it} bgClass="bg-[#f77f00]/45" />
+                  <DraggableCard key={it.path} it={it} bgClass="bg-[#f77f00]" />
                 ))}
               </DroppableColumn>
             </div>
@@ -373,7 +402,7 @@ export default function AddedItem({ projectId }: AddedItemProps) {
               </div>
               <DroppableColumn id="done" itemCount={doneItems.length}>
                 {doneItems.map((it) => (
-                  <DraggableCard key={it.path} it={it} bgClass="bg-[#4c956c]/45" />
+                  <DraggableCard key={it.path} it={it} bgClass="bg-[#4c956c]" />
                 ))}
               </DroppableColumn>
             </div>
@@ -383,15 +412,15 @@ export default function AddedItem({ projectId }: AddedItemProps) {
         <DragOverlay>
           {activePath ? (
             <div
-              className="relative rounded-xl overflow-hidden transition-colors duration-200 ease-out"
+              className="relative rounded-xl overflow-hidden transition-colors duration-200 ease-in-out"
               style={{
                 width: activeSize?.width,
                 height: activeSize?.height,
                 background: (() => {
                   const status = overStatus ?? (pathToStatus[activePath] ?? 'todo')
-                  if (status === 'ongoing') return '#f77f00' + '73' // ~45%
-                  if (status === 'done') return '#4c956c' + '73' // ~45%
-                  return 'rgba(229, 231, 235, 0.6)'
+                  if (status === 'ongoing') return '#f77f00'
+                  if (status === 'done') return '#4c956c'
+                  return '#e5e7eb'
                 })(),
               }}
             >

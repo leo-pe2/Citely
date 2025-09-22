@@ -136,6 +136,88 @@ async function listProjectItems(projectId: string): Promise<{ items: { fileName:
     return { items };
 }
 
+// Best-effort PDF Title extractor (from Info dictionary or hex string). Not a full PDF parser.
+async function extractPdfTitle(absolutePdfPath: string): Promise<string | null> {
+    try {
+        const data = await fs.readFile(absolutePdfPath);
+        const text = data.toString('latin1');
+        const idx = text.indexOf('/Title');
+        if (idx === -1) return null;
+        let i = idx + 6; // after '/Title'
+        // skip whitespace
+        while (i < text.length && /\s/.test(text[i])) i++;
+        if (i >= text.length) return null;
+        const ch = text[i];
+        // Case 1: Literal string ( ... )
+        if (ch === '(') {
+            i++;
+            let out = '';
+            let depth = 1;
+            let escaped = false;
+            for (; i < text.length; i++) {
+                const c = text[i];
+                if (escaped) {
+                    out += c;
+                    escaped = false;
+                } else if (c === '\\') {
+                    escaped = true;
+                } else if (c === '(') {
+                    depth++;
+                    out += c;
+                } else if (c === ')') {
+                    depth--;
+                    if (depth === 0) break;
+                    out += c;
+                } else {
+                    out += c;
+                }
+            }
+            const value = out.trim();
+            return value.length > 0 ? value : null;
+        }
+        // Case 2: Hex string <...>
+        if (ch === '<') {
+            i++;
+            let hex = '';
+            for (; i < text.length; i++) {
+                const c = text[i];
+                if (c === '>') break;
+                if (/^[0-9A-Fa-f]$/.test(c)) hex += c;
+            }
+            if (hex.length >= 2) {
+                // If odd length, pad
+                if (hex.length % 2 === 1) hex = hex + '0';
+                const buf = Buffer.from(hex, 'hex');
+                try {
+                    // UTF-16BE BOM FE FF
+                    if (buf.length >= 2 && buf[0] === 0xFE && buf[1] === 0xFF) {
+                        // Node doesn't support 'utf16be' directly; manually decode BE pairs
+                        const be = buf.slice(2);
+                        let out = '';
+                        for (let j = 0; j + 1 < be.length; j += 2) {
+                            const code = (be[j] << 8) | be[j + 1];
+                            out += String.fromCharCode(code);
+                        }
+                        const s = out.trim();
+                        return s.length > 0 ? s : null;
+                    }
+                } catch {}
+                try {
+                    const s = buf.toString('utf8').trim();
+                    return s.length > 0 ? s : null;
+                } catch {}
+                try {
+                    const s = buf.toString('latin1').trim();
+                    return s.length > 0 ? s : null;
+                } catch {}
+            }
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
 // Highlights persistence per project and file
 type HighlightRecord = {
     id: string;
@@ -301,6 +383,19 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:items:list', async (_event, projectId: string) => {
         return listProjectItems(projectId);
+    });
+    ipcMain.handle('projects:item:title', async (_event, absolutePath: string) => {
+        try {
+            const root = await ensureProjectsRoot();
+            const normalized = path.normalize(absolutePath);
+            if (!normalized.startsWith(root)) {
+                throw new Error('Access denied');
+            }
+            const title = await extractPdfTitle(normalized);
+            return { title: title || null } as const;
+        } catch {
+            return { title: null } as const;
+        }
     });
     ipcMain.handle('projects:item:delete', async (_event, absolutePath: string) => {
         const root = await ensureProjectsRoot();

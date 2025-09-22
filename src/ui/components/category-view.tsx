@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AddedItem from './added-item'
-import penIcon from '../assets/pen.svg'
 import plusIcon from '../assets/plus.svg'
-import Notes from './notes'
+import { ItemsTable } from '@table/items-table'
+
 
 type CategoryViewProps = {
   id: string
@@ -26,12 +26,17 @@ function writeOverrides(next: ProjectOverrides) {
 }
 
 export default function CategoryView({ id, name }: CategoryViewProps) {
-  const [menuOpen, setMenuOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const menuRef = useRef<HTMLDivElement | null>(null)
   const [description, setDescription] = useState<string>(() => readOverrides()[id]?.description ?? '')
   const [hasItems, setHasItems] = useState<boolean>(false)
-  const [activePage, setActivePage] = useState<'kanban' | 'notes'>('kanban')
+  const [activePage, setActivePage] = useState<'kanban' | 'table'>(() => {
+    try {
+      const v = localStorage.getItem('category-active-page')
+      return v === 'table' ? 'table' : 'kanban'
+    } catch {
+      return 'kanban'
+    }
+  })
 
   const initialName = useMemo(() => {
     const o = readOverrides()
@@ -44,17 +49,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
     setDisplayName(initialName)
   }, [initialName])
 
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (!menuOpen) return
-      const t = e.target as Node
-      if (menuRef.current && !menuRef.current.contains(t)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
-  }, [menuOpen])
+  // Removed name edit menu
 
   useEffect(() => {
     function onOverridesChanged() {
@@ -66,18 +61,12 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
 
   // Split view handled at Home level
 
-  // Keep local selection in sync when switching categories or opening the menu
+  // Keep local selection in sync when switching categories
   useEffect(() => {
     setDescription(readOverrides()[id]?.description ?? '')
-  }, [id, menuOpen])
+  }, [id])
 
-  function updateName(nextName: string) {
-    setDisplayName(nextName)
-    const o = readOverrides()
-    const prev = o[id] || {}
-    const next: ProjectOverrides = { ...o, [id]: { ...prev, name: nextName || undefined } }
-    writeOverrides(next)
-  }
+  // Name editing removed
 
   function updateDescription(nextText: string) {
     const trimmed = nextText.replace(/\n/g, '').slice(0, 40)
@@ -134,16 +123,22 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
           <h1 className="text-[46px] leading-none font-regular font-heading">{displayName}</h1>
           <nav className="flex items-center gap-3 text-[14px] leading-none text-gray-600 self-center mt-[4px]">
             <button
-              className={`${activePage === 'kanban' ? 'text-black' : 'hover:text-black'}`}
-              onClick={() => setActivePage('kanban')}
+              className={`${activePage === 'table' ? 'text-black' : 'hover:text-black'}`}
+              onClick={() => {
+                setActivePage('table')
+                try { localStorage.setItem('category-active-page', 'table') } catch {}
+              }}
             >
-              Kanban
+              Table
             </button>
             <button
-              className={`${activePage === 'notes' ? 'text-black' : 'hover:text-black'}`}
-              onClick={() => setActivePage('notes')}
+              className={`${activePage === 'kanban' ? 'text-black' : 'hover:text-black'}`}
+              onClick={() => {
+                setActivePage('kanban')
+                try { localStorage.setItem('category-active-page', 'kanban') } catch {}
+              }}
             >
-              Notes
+              Kanban
             </button>
           </nav>
         </div>
@@ -155,31 +150,6 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
           >
             <img src={plusIcon} alt="" className="w-4 h-4" />
           </button>
-          <div className="relative" ref={menuRef}>
-            <button
-              className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${menuOpen ? 'border-black' : 'border-gray-300 hover:border-black'}`}
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-label="Edit category"
-            >
-              <img src={penIcon} alt="" className="w-4 h-4" />
-            </button>
-
-            {menuOpen ? (
-              <div className="absolute right-0 top-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl w-[300px] p-3 z-10">
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-black/70 mb-1">Project name</label>
-                    <input
-                      className="w-full rounded border border-black/20 bg-white/5 text-black placeholder-black/50 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-white/20"
-                      value={displayName}
-                      onChange={(e) => updateName(e.target.value)}
-                      placeholder="Enter name"
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
         </div>
       </div>
       <div className="mt-2">
@@ -200,7 +170,7 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
             <AddedItem projectId={id} />
           </div>
         ) : (
-          <Notes />
+          <ItemsTable projectId={id} />
         )}
       </div>
     </div>

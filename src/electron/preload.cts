@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.invoke('projects:item:delete', absolutePath),
       deleteAll: (projectId: string, pdfFileName: string, absolutePath: string): Promise<{ ok: true }> =>
         ipcRenderer.invoke('projects:item:delete-all', projectId, pdfFileName, absolutePath),
+      getTitle: (absolutePath: string): Promise<{ title: string | null }> =>
+        ipcRenderer.invoke('projects:item:title', absolutePath),
     },
     kanban: {
       get: (projectId: string): Promise<Record<string, string>> =>

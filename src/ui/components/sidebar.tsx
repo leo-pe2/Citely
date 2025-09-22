@@ -61,22 +61,10 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
       .list()
       .then((items: SidebarProject[]) => {
         setProjects(items)
-        const lastView = localStorage.getItem('last-view')
-        if (lastView === 'home') {
-          setSelectedCategoryId(null)
-          setIsHomeActive(true)
-          onSelectHome?.()
-          return
-        }
-        const lastId = localStorage.getItem('last-category-id')
-        if (lastId) {
-          const found = items.find((p) => p.id === lastId)
-          if (found) {
-            setSelectedCategoryId(found.id)
-            setIsHomeActive(false)
-            onSelectCategory?.(found)
-          }
-        }
+        // On app start, always land on Home regardless of previous session
+        setSelectedCategoryId(null)
+        setIsHomeActive(true)
+        onSelectHome?.()
       })
       .catch(() => setProjects([]))
   }, [])
