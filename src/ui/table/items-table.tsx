@@ -9,7 +9,7 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
   const [items, setItems] = React.useState<ProjectItem[]>([])
   const [pathToTitle, setPathToTitle] = React.useState<Record<string, string>>({})
   const [pathToStatus, setPathToStatus] = React.useState<Record<string, 'todo' | 'ongoing' | 'done'>>({})
-  const [pathToInfo, setPathToInfo] = React.useState<Record<string, { authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null }>>({})
+  const [pathToInfo, setPathToInfo] = React.useState<Record<string, { authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null; lastUsed: string | null }>>({})
 
   // Fetch items list
   React.useEffect(() => {
@@ -81,7 +81,7 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
     let mounted = true
     async function loadInfo() {
       try {
-        const api = (window as unknown as { api?: { projects: { items?: { getInfo?: (absolutePath: string) => Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null }> } } } }).api
+        const api = (window as unknown as { api?: { projects: { items?: { getInfo?: (absolutePath: string) => Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null; lastUsed: string | null }> } } } }).api
         if (!api?.projects.items?.getInfo || items.length === 0) {
           if (mounted) setPathToInfo({})
           return
@@ -138,10 +138,10 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
       fileName: it.fileName,
       authors: pathToInfo[it.path]?.authors ?? null,
       year: pathToInfo[it.path]?.year ?? null,
-      pages: pathToInfo[it.path]?.pages ?? null,
       status: pathToStatus[it.path] ?? 'todo',
       doiOrIsbn: pathToInfo[it.path]?.doiOrIsbn ?? null,
       added: pathToInfo[it.path]?.added ?? null,
+      lastUsed: pathToInfo[it.path]?.lastUsed ?? null,
     }))
   }, [items, pathToTitle, pathToStatus, pathToInfo])
 

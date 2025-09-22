@@ -42,7 +42,7 @@ export function DataTable<TData>({ columns, data }: DataTableProps<TData>) {
             <col className="w-[10%]" />  {/* Author(s) */}
             <col className="w-[10%]" />  {/* Status */}
             <col className="w-[10%]" />  {/* Year */}
-            <col className="w-[10%]" />  {/* Pages */}
+            <col className="w-[10%]" />  {/* Last used */}
             <col className="w-[10%]" />  {/* DOI / ISBN */}
             <col className="w-[10%]" />   {/* Added */}
           </colgroup>

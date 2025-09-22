@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage, dialog, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, dialog, Menu, MenuItemConstructorOptions, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
@@ -142,8 +142,8 @@ async function listProjectItems(projectId: string): Promise<{ items: { fileName:
     return { items };
 }
 
-// Project metadata (e.g., import timestamps)
-type ProjectMetadata = Record<string, { importedAt?: string }>
+// Project metadata (import and last access timestamps)
+type ProjectMetadata = Record<string, { importedAt?: string; lastUsedAt?: string }>
 
 async function readProjectMetadata(projectId: string): Promise<ProjectMetadata> {
     const root = await ensureProjectsRoot();
@@ -370,7 +370,7 @@ async function findDoiOrIsbn(absolutePdfPath: string): Promise<string | null> {
     return null;
 }
 
-async function getPdfInfo(absolutePdfPath: string): Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null }> {
+async function getPdfInfo(absolutePdfPath: string): Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null; lastUsed: string | null }> {
     try {
         const [authors, year, pages, doiOrIsbn, stat] = await Promise.all([
             extractPdfAuthor(absolutePdfPath),
@@ -379,8 +379,9 @@ async function getPdfInfo(absolutePdfPath: string): Promise<{ authors: string | 
             findDoiOrIsbn(absolutePdfPath),
             fs.stat(absolutePdfPath).catch(() => null),
         ]);
-        // Prefer explicit importedAt from project metadata; fallback to file times
+        // Prefer explicit importedAt/lastUsedAt from project metadata; fallback to file times for added
         let added: string | null = null;
+        let lastUsed: string | null = null;
         try {
             const root = await ensureProjectsRoot();
             const rel = path.relative(root, absolutePdfPath);
@@ -389,17 +390,18 @@ async function getPdfInfo(absolutePdfPath: string): Promise<{ authors: string | 
             if (projectId) {
                 const meta = await readProjectMetadata(projectId);
                 const record = meta[absolutePdfPath];
-                if (record && typeof record.importedAt === 'string' && record.importedAt) {
-                    added = record.importedAt;
+                if (record) {
+                    if (typeof record.importedAt === 'string' && record.importedAt) added = record.importedAt;
+                    if (typeof record.lastUsedAt === 'string' && record.lastUsedAt) lastUsed = record.lastUsedAt;
                 }
             }
         } catch {}
         if (!added) {
             added = stat ? new Date(stat.birthtimeMs || stat.ctimeMs || stat.mtimeMs).toISOString().slice(0, 10) : null;
         }
-        return { authors, year, pages, doiOrIsbn, added };
+        return { authors, year, pages, doiOrIsbn, added, lastUsed };
     } catch {
-        return { authors: null, year: null, pages: null, doiOrIsbn: null, added: null };
+        return { authors: null, year: null, pages: null, doiOrIsbn: null, added: null, lastUsed: null };
     }
 }
 
@@ -540,6 +542,22 @@ app.on('ready', () => {
         mainWindow.loadFile(path.join(app.getAppPath() + '/dist-react/index.html'));
 
     }
+    // Open external links in user's default browser
+    try {
+        mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                shell.openExternal(url);
+                return { action: 'deny' };
+            }
+            return { action: 'allow' };
+        });
+        mainWindow.webContents.on('will-navigate', (event, url) => {
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                event.preventDefault();
+                shell.openExternal(url);
+            }
+        });
+    } catch {}
     // Initialize electron-screenshots instance
     let screenshots: any | null = null;
     try {
@@ -589,6 +607,23 @@ app.on('ready', () => {
             throw new Error('Access denied');
         }
         return getPdfInfo(normalized);
+    });
+    ipcMain.handle('projects:item:set-last-used', async (_event, absolutePath: string) => {
+        const root = await ensureProjectsRoot();
+        const normalized = path.normalize(absolutePath);
+        if (!normalized.startsWith(root)) {
+            throw new Error('Access denied');
+        }
+        // Determine projectId from path
+        const rel = path.relative(root, normalized);
+        const projectId = rel.split(path.sep)[0] || '';
+        if (!projectId) return { ok: true as const };
+        try {
+            const meta = await readProjectMetadata(projectId);
+            meta[normalized] = { ...(meta[normalized] || {}), lastUsedAt: new Date().toISOString().slice(0, 10) };
+            await writeProjectMetadata(projectId, meta);
+        } catch {}
+        return { ok: true as const };
     });
     ipcMain.handle('projects:item:delete', async (_event, absolutePath: string) => {
         const root = await ensureProjectsRoot();

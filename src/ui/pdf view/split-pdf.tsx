@@ -145,6 +145,14 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   }, [blobUrl])
 
   React.useEffect(() => {
+    // Mark this PDF as last used when opened
+    try {
+      const api = (window as any).api
+      api?.projects?.items?.setLastUsed?.(path).catch(() => {})
+    } catch {}
+  }, [projectId, path, fileName])
+
+  React.useEffect(() => {
     console.log('[PDF] reading file (base64) path=', path)
     let revoked = false
     let cancelled = false

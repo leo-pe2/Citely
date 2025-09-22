@@ -9,10 +9,10 @@ export type ItemRow = {
   fileName: string
   authors?: string | null
   year?: number | null
-  pages?: number | null
   status?: string | null
   doiOrIsbn?: string | null
   added?: string | null
+  lastUsed?: string | null
 }
 
 export const columns: ColumnDef<ItemRow>[] = [
@@ -92,11 +92,34 @@ export const columns: ColumnDef<ItemRow>[] = [
     },
   },
   {
-    accessorKey: "pages",
-    header: "Pages",
+    accessorKey: "lastUsed",
+    header: "Last access",
     cell: ({ row }) => {
-      const value = row.getValue("pages") as number | null
-      return <div className="tabular-nums">{value ?? "-"}</div>
+      const value = (row.getValue("lastUsed") as string | null) ?? null
+      let display = "-"
+      const raw = value ? String(value).trim() : ""
+      if (raw) {
+        let formatted: string | null = null
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
+        if (m) {
+          const d = parseInt(m[3], 10)
+          const mo = parseInt(m[2], 10)
+          const yy = String(m[1]).slice(-2)
+          formatted = `${d}.${mo}.${yy}`
+        } else {
+          try {
+            const dt = new Date(raw)
+            if (!Number.isNaN(dt.getTime())) {
+              const d = dt.getDate()
+              const mo = dt.getMonth() + 1
+              const yy = String(dt.getFullYear()).slice(-2)
+              formatted = `${d}.${mo}.${yy}`
+            }
+          } catch {}
+        }
+        display = formatted || raw
+      }
+      return <div className="tabular-nums">{display}</div>
     },
   },
   {
@@ -106,9 +129,22 @@ export const columns: ColumnDef<ItemRow>[] = [
       const value = (row.getValue("doiOrIsbn") as string | null) ?? null
       const display = value && String(value).trim().length > 0 ? String(value) : "-"
       const isExpanded = row.getIsExpanded()
-      return (
-        <div className={isExpanded ? "whitespace-normal break-words" : "truncate"} title={value ?? undefined}>{display}</div>
-      )
+      const raw = (value || '').trim()
+      // Detect DOI and render as URL
+      const normalized = raw.replace(/^doi\s*[:=]?\s*/i, '')
+      const doiMatch = /^10\.\d{4,9}\/[\-._;()\/:A-Za-z0-9]+$/.test(normalized)
+      const looksLikeUrl = /^https?:\/\//i.test(raw)
+      if (raw && (doiMatch || looksLikeUrl)) {
+        const href = looksLikeUrl ? raw : `https://doi.org/${normalized}`
+        return (
+          <div className={isExpanded ? "whitespace-normal break-words" : "truncate"}>
+            <a href={href} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline" title={raw}>
+              {display}
+            </a>
+          </div>
+        )
+      }
+      return <div className={isExpanded ? "whitespace-normal break-words" : "truncate"} title={value ?? undefined}>{display}</div>
     },
   },
   {
@@ -125,7 +161,7 @@ export const columns: ColumnDef<ItemRow>[] = [
           const d = parseInt(m[3], 10)
           const mo = parseInt(m[2], 10)
           const yy = String(m[1]).slice(-2)
-          formatted = `${d}/${mo}/${yy}`
+          formatted = `${d}.${mo}.${yy}`
         } else {
           try {
             const dt = new Date(raw)
@@ -133,7 +169,7 @@ export const columns: ColumnDef<ItemRow>[] = [
               const d = dt.getDate()
               const mo = dt.getMonth() + 1
               const yy = String(dt.getFullYear()).slice(-2)
-              formatted = `${d}/${mo}/${yy}`
+              formatted = `${d}.${mo}.${yy}`
             }
           } catch {}
         }

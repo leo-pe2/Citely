@@ -24,8 +24,10 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.invoke('projects:item:delete-all', projectId, pdfFileName, absolutePath),
       getTitle: (absolutePath: string): Promise<{ title: string | null }> =>
         ipcRenderer.invoke('projects:item:title', absolutePath),
-      getInfo: (absolutePath: string): Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null }> =>
+      getInfo: (absolutePath: string): Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null; lastUsed: string | null }> =>
         ipcRenderer.invoke('projects:item:info', absolutePath),
+      setLastUsed: (absolutePath: string): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('projects:item:set-last-used', absolutePath),
     },
     kanban: {
       get: (projectId: string): Promise<Record<string, string>> =>
