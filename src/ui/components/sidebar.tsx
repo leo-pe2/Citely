@@ -14,10 +14,15 @@ type SidebarProps = {
 function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   const [isOpen, setIsOpen] = useState<boolean>(() => {
     try {
+      const sessionFlag = sessionStorage.getItem('sidebar-session-initialized')
       const stored = localStorage.getItem('sidebar-open')
-      return stored === null ? true : stored === 'true'
+      if (!sessionFlag) {
+        sessionStorage.setItem('sidebar-session-initialized', 'true')
+        return false // collapsed on app launch (per session)
+      }
+      return stored === null ? false : stored === 'true'
     } catch {
-      return true
+      return false
     }
   })
   type SidebarProject = { id: string; name: string; path: string }
@@ -26,13 +31,19 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   
   const [overrides, setOverrides] = useState<Record<string, { name?: string; color?: string }>>({})
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
-  const [isHomeActive, setIsHomeActive] = useState<boolean>(false)
+  const [isHomeActive, setIsHomeActive] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('last-view') === 'home'
+    } catch {
+      return false
+    }
+  })
   const [projectsExpanded, setProjectsExpanded] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem('projects-expanded')
-      return stored === null ? true : stored === 'true'
+      return stored === null ? false : stored === 'true'
     } catch {
-      return true
+      return false
     }
   })
 
@@ -61,10 +72,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
       .list()
       .then((items: SidebarProject[]) => {
         setProjects(items)
-        // On app start, always land on Home regardless of previous session
-        setSelectedCategoryId(null)
-        setIsHomeActive(true)
-        onSelectHome?.()
+        // Do not force-select Home here. Let the parent decide based on its own state.
       })
       .catch(() => setProjects([]))
   }, [])

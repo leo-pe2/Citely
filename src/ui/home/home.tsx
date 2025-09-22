@@ -13,6 +13,14 @@ function Home() {
   } | null>(null)
   const [showHome, setShowHome] = useState<boolean>(() => {
     try {
+      const already = sessionStorage.getItem('app-session-initialized')
+      if (!already) {
+        sessionStorage.setItem('app-session-initialized', 'true')
+        // Persist homepage as last view so sidebar reflects it and stays after launch
+        localStorage.setItem('last-view', 'home')
+        return true
+      }
+      // Respect persisted last view after initial launch
       return localStorage.getItem('last-view') === 'home'
     } catch {
       return false

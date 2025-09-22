@@ -109,6 +109,12 @@ async function importPdfIntoProject(projectId: string): Promise<{ imported: { fi
         suffix += 1;
     }
     await fs.copyFile(srcPath, candidate);
+    // Record import timestamp in project metadata for accurate "Added" date
+    try {
+        const meta = await readProjectMetadata(projectId);
+        meta[candidate] = { ...(meta[candidate] || {}), importedAt: new Date().toISOString().slice(0, 10) };
+        await writeProjectMetadata(projectId, meta);
+    } catch {}
     return { imported: [{ fileName: destName, path: candidate }] };
 }
 
@@ -134,6 +140,32 @@ async function listProjectItems(projectId: string): Promise<{ items: { fileName:
         .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.pdf'))
         .map((e) => ({ fileName: e.name, path: path.join(projectDir, e.name) }));
     return { items };
+}
+
+// Project metadata (e.g., import timestamps)
+type ProjectMetadata = Record<string, { importedAt?: string }>
+
+async function readProjectMetadata(projectId: string): Promise<ProjectMetadata> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) return {};
+    const file = path.join(projectDir, 'metadata.json');
+    if (!existsSync(file)) return {};
+    try {
+        const text = await fs.readFile(file, 'utf-8');
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === 'object') return parsed as ProjectMetadata;
+    } catch {}
+    return {};
+}
+
+async function writeProjectMetadata(projectId: string, meta: ProjectMetadata): Promise<{ ok: true }> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    await fs.mkdir(projectDir, { recursive: true });
+    const file = path.join(projectDir, 'metadata.json');
+    await fs.writeFile(file, JSON.stringify(meta ?? {}, null, 2), 'utf-8');
+    return { ok: true };
 }
 
 // Best-effort PDF Title extractor (from Info dictionary or hex string). Not a full PDF parser.
@@ -215,6 +247,159 @@ async function extractPdfTitle(absolutePdfPath: string): Promise<string | null> 
         return null;
     } catch {
         return null;
+    }
+}
+
+async function extractPdfAuthor(absolutePdfPath: string): Promise<string | null> {
+    try {
+        const data = await fs.readFile(absolutePdfPath);
+        const text = data.toString('latin1');
+        const idx = text.indexOf('/Author');
+        if (idx === -1) return null;
+        let i = idx + 7; // after '/Author'
+        while (i < text.length && /\s/.test(text[i])) i++;
+        if (i >= text.length) return null;
+        const ch = text[i];
+        if (ch === '(') {
+            i++;
+            let out = '';
+            let depth = 1;
+            let escaped = false;
+            for (; i < text.length; i++) {
+                const c = text[i];
+                if (escaped) { out += c; escaped = false; }
+                else if (c === '\\') { escaped = true; }
+                else if (c === '(') { depth++; out += c; }
+                else if (c === ')') { depth--; if (depth === 0) break; out += c; }
+                else { out += c; }
+            }
+            const value = out.trim();
+            return value.length > 0 ? value : null;
+        }
+        if (ch === '<') {
+            i++;
+            let hex = '';
+            for (; i < text.length; i++) {
+                const c = text[i];
+                if (c === '>') break;
+                if (/^[0-9A-Fa-f]$/.test(c)) hex += c;
+            }
+            if (hex.length >= 2) {
+                if (hex.length % 2 === 1) hex = hex + '0';
+                const buf = Buffer.from(hex, 'hex');
+                try {
+                    if (buf.length >= 2 && buf[0] === 0xFE && buf[1] === 0xFF) {
+                        const be = buf.slice(2);
+                        let out = '';
+                        for (let j = 0; j + 1 < be.length; j += 2) {
+                            const code = (be[j] << 8) | be[j + 1];
+                            out += String.fromCharCode(code);
+                        }
+                        const s = out.trim();
+                        return s.length > 0 ? s : null;
+                    }
+                } catch {}
+                try {
+                    const s = buf.toString('utf8').trim();
+                    return s.length > 0 ? s : null;
+                } catch {}
+                try {
+                    const s = buf.toString('latin1').trim();
+                    return s.length > 0 ? s : null;
+                } catch {}
+            }
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+async function extractPdfCreationYear(absolutePdfPath: string): Promise<number | null> {
+    try {
+        const data = await fs.readFile(absolutePdfPath);
+        const text = data.toString('latin1');
+        // Look for CreationDate like D:YYYYMMDD...
+        const m = /\/CreationDate\s*\(D:(\d{4})/i.exec(text);
+        if (m && m[1]) {
+            const year = parseInt(m[1], 10);
+            if (!Number.isNaN(year)) return year;
+        }
+    } catch {}
+    return null;
+}
+
+async function countPdfPages(absolutePdfPath: string): Promise<number | null> {
+    try {
+        const data = await fs.readFile(absolutePdfPath);
+        const text = data.toString('latin1');
+        const matches = text.match(/\/Type\s*\/Page\b/g);
+        if (matches && matches.length > 0) return matches.length;
+    } catch {}
+    return null;
+}
+
+async function findDoiOrIsbn(absolutePdfPath: string): Promise<string | null> {
+    try {
+        const data = await fs.readFile(absolutePdfPath);
+        // Read a slice to avoid scanning huge binaries; PDFs often have metadata early
+        const slice = data.slice(0, Math.min(data.length, 512 * 1024));
+        const text = slice.toString('latin1');
+        // DOI patterns: allow only valid DOI charset to avoid capturing XML/HTML tails
+        const doiRegexes = [
+            /doi\s*[:=]?\s*(10\.\d{4,9}\/[\-._;()\/:A-Za-z0-9]+)/i,
+            /(10\.\d{4,9}\/[\-._;()\/:A-Za-z0-9]+)/i,
+        ];
+        for (const r of doiRegexes) {
+            const m = r.exec(text);
+            if (m && m[1]) {
+                let doi = m[1];
+                // Final safety: strip any trailing tag starter if present
+                doi = doi.replace(/<.*$/, '');
+                // Trim common trailing punctuation
+                doi = doi.replace(/[\]\)\}\.,;\s]+$/, '');
+                return doi;
+            }
+        }
+        // ISBN patterns (basic)
+        const isbnMatch = /ISBN[^0-9Xx]*([0-9Xx][0-9\-Xx\s]{8,}[0-9Xx])/i.exec(text);
+        if (isbnMatch && isbnMatch[1]) {
+            return isbnMatch[1].trim().replace(/\s+/g, '');
+        }
+    } catch {}
+    return null;
+}
+
+async function getPdfInfo(absolutePdfPath: string): Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null }> {
+    try {
+        const [authors, year, pages, doiOrIsbn, stat] = await Promise.all([
+            extractPdfAuthor(absolutePdfPath),
+            extractPdfCreationYear(absolutePdfPath),
+            countPdfPages(absolutePdfPath),
+            findDoiOrIsbn(absolutePdfPath),
+            fs.stat(absolutePdfPath).catch(() => null),
+        ]);
+        // Prefer explicit importedAt from project metadata; fallback to file times
+        let added: string | null = null;
+        try {
+            const root = await ensureProjectsRoot();
+            const rel = path.relative(root, absolutePdfPath);
+            const parts = rel.split(path.sep);
+            const projectId = parts.length > 0 ? parts[0] : '';
+            if (projectId) {
+                const meta = await readProjectMetadata(projectId);
+                const record = meta[absolutePdfPath];
+                if (record && typeof record.importedAt === 'string' && record.importedAt) {
+                    added = record.importedAt;
+                }
+            }
+        } catch {}
+        if (!added) {
+            added = stat ? new Date(stat.birthtimeMs || stat.ctimeMs || stat.mtimeMs).toISOString().slice(0, 10) : null;
+        }
+        return { authors, year, pages, doiOrIsbn, added };
+    } catch {
+        return { authors: null, year: null, pages: null, doiOrIsbn: null, added: null };
     }
 }
 
@@ -396,6 +581,14 @@ app.on('ready', () => {
         } catch {
             return { title: null } as const;
         }
+    });
+    ipcMain.handle('projects:item:info', async (_event, absolutePath: string) => {
+        const root = await ensureProjectsRoot();
+        const normalized = path.normalize(absolutePath);
+        if (!normalized.startsWith(root)) {
+            throw new Error('Access denied');
+        }
+        return getPdfInfo(normalized);
     });
     ipcMain.handle('projects:item:delete', async (_event, absolutePath: string) => {
         const root = await ensureProjectsRoot();

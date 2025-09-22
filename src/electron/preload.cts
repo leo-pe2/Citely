@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.invoke('projects:item:delete-all', projectId, pdfFileName, absolutePath),
       getTitle: (absolutePath: string): Promise<{ title: string | null }> =>
         ipcRenderer.invoke('projects:item:title', absolutePath),
+      getInfo: (absolutePath: string): Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null }> =>
+        ipcRenderer.invoke('projects:item:info', absolutePath),
     },
     kanban: {
       get: (projectId: string): Promise<Record<string, string>> =>

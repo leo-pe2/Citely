@@ -9,6 +9,7 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
   const [items, setItems] = React.useState<ProjectItem[]>([])
   const [pathToTitle, setPathToTitle] = React.useState<Record<string, string>>({})
   const [pathToStatus, setPathToStatus] = React.useState<Record<string, 'todo' | 'ongoing' | 'done'>>({})
+  const [pathToInfo, setPathToInfo] = React.useState<Record<string, { authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null }>>({})
 
   // Fetch items list
   React.useEffect(() => {
@@ -26,6 +27,22 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
     }
     loadItems()
     return () => { mounted = false }
+  }, [projectId])
+
+  // Merge newly imported PDFs immediately without requiring a page switch
+  React.useEffect(() => {
+    function onItemImported(e: Event) {
+      const detail = (e as CustomEvent<{ projectId: string; items: ProjectItem[] }>).detail
+      if (!detail || detail.projectId !== projectId || !Array.isArray(detail.items) || detail.items.length === 0) return
+      setItems((prev) => {
+        const existing = new Set(prev.map((it) => it.path))
+        const additions = detail.items.filter((it) => it && typeof it.path === 'string' && !existing.has(it.path))
+        if (additions.length === 0) return prev
+        return [...prev, ...additions]
+      })
+    }
+    window.addEventListener('project:item:imported', onItemImported)
+    return () => window.removeEventListener('project:item:imported', onItemImported)
   }, [projectId])
 
   // Fetch titles for current items
@@ -59,6 +76,37 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
     return () => { mounted = false }
   }, [items])
 
+  // Fetch PDF info for current items
+  React.useEffect(() => {
+    let mounted = true
+    async function loadInfo() {
+      try {
+        const api = (window as unknown as { api?: { projects: { items?: { getInfo?: (absolutePath: string) => Promise<{ authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null }> } } } }).api
+        if (!api?.projects.items?.getInfo || items.length === 0) {
+          if (mounted) setPathToInfo({})
+          return
+        }
+        const entries = await Promise.all(
+          items.map(async (it) => {
+            try {
+              const r = await api.projects.items!.getInfo!(it.path)
+              return [it.path, r] as const
+            } catch {
+              return [it.path, { authors: null, year: null, pages: null, doiOrIsbn: null, added: null }] as const
+            }
+          })
+        )
+        if (!mounted) return
+        setPathToInfo(Object.fromEntries(entries))
+      } catch {
+        if (!mounted) return
+        setPathToInfo({})
+      }
+    }
+    loadInfo()
+    return () => { mounted = false }
+  }, [items])
+
   // Fetch kanban statuses
   React.useEffect(() => {
     let mounted = true
@@ -88,14 +136,14 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
     return items.map((it) => ({
       title: (pathToTitle[it.path] || '').trim() || it.fileName,
       fileName: it.fileName,
-      authors: null,
-      year: null,
-      pages: null,
+      authors: pathToInfo[it.path]?.authors ?? null,
+      year: pathToInfo[it.path]?.year ?? null,
+      pages: pathToInfo[it.path]?.pages ?? null,
       status: pathToStatus[it.path] ?? 'todo',
-      doiOrIsbn: null,
-      added: null,
+      doiOrIsbn: pathToInfo[it.path]?.doiOrIsbn ?? null,
+      added: pathToInfo[it.path]?.added ?? null,
     }))
-  }, [items, pathToTitle, pathToStatus])
+  }, [items, pathToTitle, pathToStatus, pathToInfo])
 
   return <DataTable columns={columns} data={rows} />
 }
