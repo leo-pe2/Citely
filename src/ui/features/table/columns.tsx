@@ -3,8 +3,8 @@ import { ArrowUpDown } from "lucide-react"
 import React from "react"
 
 // Removed Button to avoid hover/focus borders shifting header layout
-import openIcon from "../assets/square-arrow-out-up-right.svg"
-import trashIcon from "../assets/trash.svg"
+import openIcon from "../../assets/square-arrow-out-up-right.svg"
+import trashIcon from "../../assets/trash.svg"
 
 export type ItemRow = {
   title: string
@@ -255,4 +255,3 @@ export const columns: ColumnDef<ItemRow>[] = [
     enableSorting: false,
   },
 ]
-

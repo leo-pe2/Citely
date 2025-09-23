@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import { DndContext, DragOverlay, PointerSensor, closestCenter, useSensor, useSensors, type DragStartEvent, type DragEndEvent, type DragCancelEvent } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import trashIcon from '../assets/trash.svg'
-import openIcon from '../assets/square-arrow-out-up-right.svg'
+import trashIcon from '../../assets/trash.svg'
+import openIcon from '../../assets/square-arrow-out-up-right.svg'
 
 type AddedItemProps = {
   projectId: string
@@ -492,5 +492,4 @@ export default function AddedItem({ projectId }: AddedItemProps) {
     </div>
   )
 }
-
 

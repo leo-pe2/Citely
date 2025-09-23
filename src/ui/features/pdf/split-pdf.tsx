@@ -1,12 +1,12 @@
 import React from 'react'
 import SplitHighlights from './split-highlights'
 import { PdfLoader, PdfHighlighter, Highlight } from 'react-pdf-highlighter'
-import PdfToolbar from '../components/pdf-toolbar'
-import PdfZoomToolbar from '../components/pdf-zoom-toolbar'
-import checkIcon from '../assets/check.svg'
-import xIcon from '../assets/x.svg'
-import filesCopyIcon from '../assets/files_copy.svg'
-import exportIcon from '../assets/export.svg'
+import PdfToolbar from './pdf-toolbar'
+import PdfZoomToolbar from './pdf-zoom-toolbar'
+import checkIcon from '../../assets/check.svg'
+import xIcon from '../../assets/x.svg'
+import filesCopyIcon from '../../assets/files_copy.svg'
+import exportIcon from '../../assets/export.svg'
 import { Document, Page, Text, View, Image as PdfImage, StyleSheet, pdf } from '@react-pdf/renderer'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
@@ -1019,5 +1019,4 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     </>
   )
 }
-
 

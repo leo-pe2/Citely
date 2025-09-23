@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import chevronSelector from '../assets/sidebar/chevron-selector.svg'
-import homeIcon from '../assets/sidebar/home.svg'
-import chevronLeft from '../assets/sidebar/chevron-left.svg'
-import CreateProjectModal from './sidebar-popups/create-project'
-import categoryIcon from '../assets/sidebar/category-svgrepo-com.svg'
+import homeIcon from '../../assets/sidebar/home.svg'
+import chevronLeft from '../../assets/sidebar/chevron-left.svg'
+import CreateProjectModal from './create-project-modal'
+import categoryIcon from '../../assets/sidebar/category-svgrepo-com.svg'
 
 type SidebarProps = {
   onSelectCategory?: (c: { id: string; name: string; path: string }) => void
@@ -28,7 +27,7 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   type SidebarProject = { id: string; name: string; path: string }
   const [projects, setProjects] = useState<SidebarProject[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  
+
   const [overrides, setOverrides] = useState<Record<string, { name?: string; color?: string }>>({})
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(() => {
     try {
@@ -61,7 +60,6 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   const OPEN_WIDTH = 256
   const CLOSED_WIDTH = 56
 
-  
 
   useEffect(() => {
     try {
@@ -87,13 +85,6 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
       })
       .catch(() => setProjects([]))
   }, [])
-
-  function normalizeSvg(raw: string) {
-    // Only adjust width/height on the root <svg> element. Avoid touching stroke-width, etc.
-    return raw
-      .replace(/(<svg[^>]*?)\swidth="[^"]+"/i, '$1 width="100%"')
-      .replace(/(<svg[^>]*?)\sheight="[^"]+"/i, '$1 height="100%"')
-  }
 
   function readOverrides() {
     try {
@@ -139,7 +130,6 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   }
 
   
-
   function selectCategory(category: SidebarProject) {
     localStorage.setItem('last-category-id', category.id)
     setSelectedCategoryId(category.id)
@@ -282,5 +272,3 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
 }
 
 export default Sidebar
-
-

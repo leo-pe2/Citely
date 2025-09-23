@@ -1,7 +1,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import highlighterIcon from '../assets/highlighter.svg'
-import cameraIcon from '../assets/camera.svg'
+import highlighterIcon from '../../assets/highlighter.svg'
+import cameraIcon from '../../assets/camera.svg'
 
 type PdfToolbarProps = {
   roundedPx?: number
@@ -50,5 +50,4 @@ export default function PdfToolbar({ roundedPx = 20, active, onChangeActive }: P
     </div>
   )
 }
-
 

@@ -14,8 +14,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 // removed unused icons per UI simplification
-import cameraIcon from '../assets/camera.svg'
-import highlighterIcon from '../assets/highlighter.svg'
+import cameraIcon from '../../assets/camera.svg'
+import highlighterIcon from '../../assets/highlighter.svg'
 
 type SplitHighlightsProps = {
   highlights: any[]
@@ -376,5 +376,4 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
     </div>
   )
 }
-
 

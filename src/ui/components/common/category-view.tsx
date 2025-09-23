@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AddedItem from './added-item'
-import plusIcon from '../assets/plus.svg'
-import { ItemsTable } from '@table/items-table'
+import plusIcon from '../../assets/plus.svg'
+import { ItemsTable } from '@features/table/items-table'
 
 
 type CategoryViewProps = {
@@ -176,5 +176,4 @@ export default function CategoryView({ id, name }: CategoryViewProps) {
     </div>
   )
 }
-
 

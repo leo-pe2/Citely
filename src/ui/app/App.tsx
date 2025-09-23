@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
-import Sidebar from '../components/sidebar'
-import HomePage from '../homepage/homepage'
-import CategoryView from '../components/category-view'
-import SplitPdf from '../pdf view/split-pdf'
+import Sidebar from '../components/sidebar/sidebar'
+import HomePage from '../pages/home/home-page'
+import CategoryView from '../components/common/category-view'
+import SplitPdf from '../features/pdf/split-pdf'
 
-function Home() {
+function App() {
   const [selected, setSelected] = useState<{ id: string; name: string; path: string } | null>(null)
   const [splitContext, setSplitContext] = useState<{
     projectId: string
@@ -83,6 +83,5 @@ function Home() {
   )
 }
 
-export default Home
-
+export default App
 

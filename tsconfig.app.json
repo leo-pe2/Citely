@@ -19,8 +19,8 @@
       "@/*": [
         "./src/ui/*"
       ],
-      "@table/*": [
-        "./src/ui/table/*"
+      "@features/*": [
+        "./src/ui/features/*"
       ]
     },
 

@@ -10,7 +10,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@table/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table'
 
 type DataTableProps<TData> = {
   columns: ColumnDef<TData, any>[]
@@ -84,5 +84,4 @@ export function DataTable<TData>({ columns, data }: DataTableProps<TData>) {
     </div>
   )
 }
-
 

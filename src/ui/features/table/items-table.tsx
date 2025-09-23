@@ -1,6 +1,6 @@
 import React from 'react'
-import { DataTable } from '@table/data-table'
-import { columns, type ItemRow } from '@table/columns'
+import { DataTable } from './data-table'
+import { columns, type ItemRow } from './columns'
 
 type ItemsTableProps = { projectId: string }
 type ProjectItem = { fileName: string; path: string }
@@ -171,5 +171,4 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
 
   return <DataTable columns={columns} data={rows} />
 }
-
 
