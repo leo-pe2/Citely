@@ -463,6 +463,8 @@ export default function AddedItem({ projectId }: AddedItemProps) {
                   try {
                     const api = (window as unknown as { api?: { projects: { items?: { deleteAll?: (projectId: string, pdfFileName: string, absolutePath: string) => Promise<{ ok: true }> } } } }).api
                     await api?.projects.items?.deleteAll?.(projectId, target.fileName, target.path)
+                    // Broadcast deletion so table/listeners can update immediately
+                    window.dispatchEvent(new CustomEvent('project:item:deleted', { detail: { path: target.path } }))
                   } finally {
                     // Clear local override and kanban status
                     setItemOverrides((prev) => {

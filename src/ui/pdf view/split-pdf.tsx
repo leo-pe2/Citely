@@ -145,11 +145,20 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   }, [blobUrl])
 
   React.useEffect(() => {
-    // Mark this PDF as last used when opened
-    try {
-      const api = (window as any).api
-      api?.projects?.items?.setLastUsed?.(path).catch(() => {})
-    } catch {}
+    // Mark this PDF as last used when opened and notify tables to update immediately
+    let cancelled = false
+    ;(async () => {
+      try {
+        const api = (window as any).api
+        await api?.projects?.items?.setLastUsed?.(path)
+        if (cancelled) return
+        const todayIso = new Date().toISOString().slice(0, 10)
+        try {
+          window.dispatchEvent(new CustomEvent('project:item:last-used', { detail: { projectId, path, date: todayIso } }))
+        } catch {}
+      } catch {}
+    })()
+    return () => { cancelled = true }
   }, [projectId, path, fileName])
 
   React.useEffect(() => {

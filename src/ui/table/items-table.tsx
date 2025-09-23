@@ -45,6 +45,28 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
     return () => window.removeEventListener('project:item:imported', onItemImported)
   }, [projectId])
 
+  // Remove deleted item immediately
+  React.useEffect(() => {
+    function onDeleted(e: Event) {
+      const detail = (e as CustomEvent<{ path: string }>).detail
+      if (!detail || !detail.path) return
+      setItems((prev) => prev.filter((it) => it.path !== detail.path))
+    }
+    window.addEventListener('project:item:deleted', onDeleted)
+    return () => window.removeEventListener('project:item:deleted', onDeleted)
+  }, [])
+
+  // Update last used date immediately when notified
+  React.useEffect(() => {
+    function onLastUsed(e: Event) {
+      const detail = (e as CustomEvent<{ projectId: string; path: string; date: string }>).detail
+      if (!detail || detail.projectId !== projectId) return
+      setPathToInfo((prev) => ({ ...prev, [detail.path]: { ...(prev[detail.path] || {}), lastUsed: detail.date } }))
+    }
+    window.addEventListener('project:item:last-used', onLastUsed)
+    return () => window.removeEventListener('project:item:last-used', onLastUsed)
+  }, [projectId])
+
   // Fetch titles for current items
   React.useEffect(() => {
     let mounted = true
@@ -142,6 +164,8 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
       doiOrIsbn: pathToInfo[it.path]?.doiOrIsbn ?? null,
       added: pathToInfo[it.path]?.added ?? null,
       lastUsed: pathToInfo[it.path]?.lastUsed ?? null,
+      path: it.path,
+      projectId,
     }))
   }, [items, pathToTitle, pathToStatus, pathToInfo])
 

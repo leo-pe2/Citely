@@ -42,9 +42,10 @@ export function DataTable<TData>({ columns, data }: DataTableProps<TData>) {
             <col className="w-[10%]" />  {/* Author(s) */}
             <col className="w-[10%]" />  {/* Status */}
             <col className="w-[10%]" />  {/* Year */}
-            <col className="w-[10%]" />  {/* Last used */}
             <col className="w-[10%]" />  {/* DOI / ISBN */}
-            <col className="w-[10%]" />   {/* Added */}
+            <col className="w-[10%]" />  {/* Added */}
+            <col className="w-[10%]" />  {/* Last access */}
+            <col className="w-[10%]" />  {/* Actions */}
           </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -62,7 +63,7 @@ export function DataTable<TData>({ columns, data }: DataTableProps<TData>) {
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                <TableRow key={row.id} className="group" data-state={row.getIsSelected() && 'selected'}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
