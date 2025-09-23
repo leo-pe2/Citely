@@ -30,7 +30,18 @@ function Sidebar({ onSelectCategory, onSelectHome }: SidebarProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   
   const [overrides, setOverrides] = useState<Record<string, { name?: string; color?: string }>>({})
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(() => {
+    try {
+      const lastView = localStorage.getItem('last-view')
+      if (lastView === 'category') {
+        const lastId = localStorage.getItem('last-category-id')
+        return lastId ? lastId : null
+      }
+      return null
+    } catch {
+      return null
+    }
+  })
   const [isHomeActive, setIsHomeActive] = useState<boolean>(() => {
     try {
       return localStorage.getItem('last-view') === 'home'
