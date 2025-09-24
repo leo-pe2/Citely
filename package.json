@@ -4,6 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
+  "license": "GPL-3.0-only",
+  "author": "Leonard Penzenstadler",
+  "homepage": "not available yet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leo-pe2/Citely"
+  },
+  
   "scripts": {
     "dev": "npm-run-all --parallel dev:react dev:electron",
     "dev:react": "vite",
