@@ -16,6 +16,7 @@ import {
 // removed unused icons per UI simplification
 import cameraIcon from '../../assets/camera.svg'
 import highlighterIcon from '../../assets/highlighter.svg'
+import infoIcon from '../../assets/info.svg'
 
 type SplitHighlightsProps = {
   highlights: any[]
@@ -45,9 +46,58 @@ function getPageNumber(h: any): number | undefined {
 export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChangeComment, onJumpToPage, activeTab, searchQuery }: SplitHighlightsProps) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [menuOpenId, setMenuOpenId] = React.useState<string | null>(null)
+  const [infoOpenId, setInfoOpenId] = React.useState<string | null>(null)
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const prevCountRef = React.useRef<number>(highlights?.length ?? 0)
   const suppressClicksUntilRef = React.useRef<number>(0)
+  const infoCloseTimerRef = React.useRef<number | null>(null)
+  // Local fallback map so new items without createdAt still show a timestamp immediately
+  const localCreatedAtRef = React.useRef<Map<string, string>>(new Map())
+
+  function openInfo(id: string) {
+    if (infoCloseTimerRef.current) {
+      window.clearTimeout(infoCloseTimerRef.current)
+      infoCloseTimerRef.current = null
+    }
+    setInfoOpenId(id)
+  }
+
+  function scheduleCloseInfo(id: string) {
+    if (infoCloseTimerRef.current) {
+      window.clearTimeout(infoCloseTimerRef.current)
+      infoCloseTimerRef.current = null
+    }
+    infoCloseTimerRef.current = window.setTimeout(() => {
+      if (infoOpenId === id) setInfoOpenId(null)
+    }, 300)
+  }
+
+  function formatDateTime(iso?: string): string {
+    try {
+      if (!iso) return 'Unknown'
+      const d = new Date(iso)
+      if (isNaN(d.getTime())) return 'Unknown'
+      const date = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      return `${date} ${time}`
+    } catch {
+      return 'Unknown'
+    }
+  }
+
+  function getCreatedAt(h: any): string | undefined {
+    const existing: string | undefined = h?.createdAt
+    if (typeof existing === 'string' && existing) return existing
+    const id = h?.id
+    if (typeof id === 'string' && id) {
+      const cached = localCreatedAtRef.current.get(id)
+      if (cached) return cached
+      const now = new Date().toISOString()
+      localCreatedAtRef.current.set(id, now)
+      return now
+    }
+    return undefined
+  }
 
   async function copyAnnotationText(text: string) {
     try {
@@ -116,10 +166,11 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
   React.useEffect(() => {
     function onGlobalMouseDown() {
       if (menuOpenId) setMenuOpenId(null)
+      if (infoOpenId) setInfoOpenId(null)
     }
     window.addEventListener('mousedown', onGlobalMouseDown)
     return () => window.removeEventListener('mousedown', onGlobalMouseDown)
-  }, [menuOpenId])
+  }, [menuOpenId, infoOpenId])
 
   return (
     <div className="w-full h-full overflow-y-auto p-4" ref={containerRef}>
@@ -147,6 +198,25 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                               Screenshot
                             </span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5">Page {pageNumber ?? '—'}</span>
+                            <DropdownMenu open={infoOpenId === h.id} onOpenChange={() => {}}>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  className="inline-flex items-center justify-center rounded-md hover:bg-gray-50 h-7 w-7"
+                                  aria-label="Info"
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setInfoOpenId(prev => prev === h.id ? null : h.id)
+                                  }}
+                                >
+                                  <img src={infoIcon} alt="" className="h-4 w-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="center" side="bottom" sideOffset={2} className="px-2 py-1.5 bg-white text-gray-900 text-xs border border-gray-200 shadow-md">
+                                <div>{formatDateTime(getCreatedAt(h))}</div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                             <div className="ml-auto">
                               <DropdownMenu onOpenChange={(open) => setMenuOpenId(open ? h.id : (menuOpenId === h.id ? null : menuOpenId))}>
                                 <DropdownMenuTrigger asChild>
@@ -258,6 +328,25 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                               {isScreenshot ? 'Screenshot' : 'Annotation'}
                             </span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5">Page {pageNumber ?? '—'}</span>
+                            <DropdownMenu open={infoOpenId === h.id} onOpenChange={() => {}}>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  className="inline-flex items-center justify-center rounded-md hover:bg-gray-50 h-7 w-7"
+                                  aria-label="Info"
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setInfoOpenId(prev => prev === h.id ? null : h.id)
+                                  }}
+                                >
+                                  <img src={infoIcon} alt="" className="h-4 w-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="center" side="bottom" sideOffset={2} className="px-2 py-1.5 bg-white text-gray-900 text-xs border border-gray-200 shadow-md">
+                                <div>{formatDateTime(getCreatedAt(h))}</div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                             <div className="ml-auto">
                               <DropdownMenu onOpenChange={(open) => setMenuOpenId(open ? h.id : (menuOpenId === h.id ? null : menuOpenId))}>
                                 <DropdownMenuTrigger asChild>

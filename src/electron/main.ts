@@ -411,6 +411,7 @@ type HighlightRecord = {
     position: unknown;
     content: unknown;
     comment?: unknown;
+    createdAt?: string;
 };
 
 async function readHighlights(projectId: string, pdfFileName: string): Promise<HighlightRecord[]> {
@@ -422,7 +423,14 @@ async function readHighlights(projectId: string, pdfFileName: string): Promise<H
     try {
         const text = await fs.readFile(storeFile, 'utf-8');
         const parsed = JSON.parse(text);
-        if (Array.isArray(parsed)) return parsed as HighlightRecord[];
+        if (Array.isArray(parsed)) {
+            // Backfill createdAt for older stored items
+            const withCreated: HighlightRecord[] = parsed.map((h: any) => {
+                if (typeof h?.createdAt === 'string' && h.createdAt) return h as HighlightRecord;
+                return { ...(h || {}), createdAt: new Date().toISOString() } as HighlightRecord;
+            });
+            return withCreated;
+        }
     } catch {}
     return [];
 }
@@ -433,7 +441,15 @@ async function writeHighlights(projectId: string, pdfFileName: string, highlight
     const hlDir = path.join(projectDir, 'highlights');
     await fs.mkdir(hlDir, { recursive: true });
     const storeFile = path.join(hlDir, `${pdfFileName}.json`);
-    await fs.writeFile(storeFile, JSON.stringify(highlights ?? [], null, 2), 'utf-8');
+    // Ensure each highlight has a createdAt timestamp (ISO date-time)
+    const toPersist: HighlightRecord[] = Array.isArray(highlights)
+        ? highlights.map((h: HighlightRecord) => {
+            const anyH: any = h as any;
+            if (typeof anyH?.createdAt === 'string' && anyH.createdAt) return h;
+            return { ...anyH, createdAt: new Date().toISOString() } as HighlightRecord;
+          })
+        : [];
+    await fs.writeFile(storeFile, JSON.stringify(toPersist, null, 2), 'utf-8');
     // Auto-promote kanban status to 'ongoing' if there are any highlights/screenshots for this PDF
     try {
         if (Array.isArray(highlights) && highlights.length > 0) {
@@ -620,7 +636,12 @@ app.on('ready', () => {
         if (!projectId) return { ok: true as const };
         try {
             const meta = await readProjectMetadata(projectId);
-            meta[normalized] = { ...(meta[normalized] || {}), lastUsedAt: new Date().toISOString().slice(0, 10) };
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const localDate = `${yyyy}-${mm}-${dd}`;
+            meta[normalized] = { ...(meta[normalized] || {}), lastUsedAt: localDate };
             await writeProjectMetadata(projectId, meta);
         } catch {}
         return { ok: true as const };

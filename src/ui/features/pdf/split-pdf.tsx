@@ -152,7 +152,11 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         const api = (window as any).api
         await api?.projects?.items?.setLastUsed?.(path)
         if (cancelled) return
-        const todayIso = new Date().toISOString().slice(0, 10)
+        const now = new Date()
+        const yyyy = now.getFullYear()
+        const mm = String(now.getMonth() + 1).padStart(2, '0')
+        const dd = String(now.getDate()).padStart(2, '0')
+        const todayIso = `${yyyy}-${mm}-${dd}`
         try {
           window.dispatchEvent(new CustomEvent('project:item:last-used', { detail: { projectId, path, date: todayIso } }))
         } catch {}
