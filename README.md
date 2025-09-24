@@ -4,6 +4,8 @@ I originally built this to streamline how I work through lecture slides—quickl
 
 I owe heavy credit to Zotero for the inspiration of some features. My goal is to build an app which feels native, has a clean design and boosts productivity.
 
+**Notice:** The app is in very early stages and some pages don't exist yet. The project is maintained as long as I need it or have ideas for it.
+
 ### Current Features
 
 - **PDF importing + light metadata:** Auto-parses title, authors, year, and DOI/ISBN where present. 
