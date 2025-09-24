@@ -2,16 +2,24 @@
 
 I originally built this to streamline how I work through lecture slides—quickly jumping between pages, marking key points, and exporting clean summaries. That’s still the core, but the scope has grown: the app now treats research papers and lecture decks as first-class citizens. You can import PDFs, highlight text and figures, capture screenshots with context, and export your notes as a tidy, shareable PDF.
 
-I owe heavy credit to Zotero for the inspiration of some features. My goal is to build an app which feels native, has a clean design and boosts productivity.
+I owe heavy credit to Zotero for the inspiration of some features. My goal is to build an app which feels native, has a clean design and boosts productivity. I'm open for any feature requests (dm me on discord: leo123037)
 
 **Notice:** The app is in very early stages and some pages don't exist yet. The project is maintained as long as I need it or have ideas for it.
+
+<img width="2778" height="1774" alt="17 09-24 09 2025@2x" src="https://github.com/user-attachments/assets/ede6945c-f2a3-477c-b5b8-b991ee1aa7b0" />
+
+<img width="2786" height="1778" alt="17 09-24 09 2025@2x" src="https://github.com/user-attachments/assets/c28f8b34-e2b1-4857-8b28-ce1f4ac50506" />
+
+<img width="3590" height="2252" alt="17 08-24 09 2025@2x" src="https://github.com/user-attachments/assets/4adb90db-a473-4200-9c82-a5391f1ff55f" />
+
 
 ### Current Features
 
 - **PDF importing + light metadata:** Auto-parses title, authors, year, and DOI/ISBN where present. 
 - **Persistent highlights per PDF:** Highlights are saved with the file; a document auto-moves to **Ongoing** once the first highlight exists.
 - **Lightweight Kanban (PDF status only):** Track PDFs as **To Do → Ongoing → Done**. The board is just for files, not tasks. You can switch between a table and kanban view (inspired by Notion).
-- **Screenshot capture:** Full-screen via `electron-screenshots` when available, with a fallback to window/rect capture.
+- **Comments:** Add a comment to Highlight.
+- **Screenshot capture:** Haven't seen this feature before in this kind of app. Capture graphs, formulas and save it as a "highlight"
 - **100% offline:** No account, no server—everything runs locally.
 
 ### Future Features: 
@@ -23,6 +31,7 @@ I owe heavy credit to Zotero for the inspiration of some features. My goal is to
 - Node.js
 - npm
 - macOS, Windows, or Linux (for packaging, build tools per OS are required)
+- electron
 
 ## Install
 
