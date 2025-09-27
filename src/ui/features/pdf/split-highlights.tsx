@@ -17,6 +17,7 @@ import {
 import cameraIcon from '../../assets/camera.svg'
 import highlighterIcon from '../../assets/highlighter.svg'
 import infoIcon from '../../assets/info.svg'
+import { resolvePageNumber, resolvePageVerticalPosition } from './export/types'
 
 type SplitHighlightsProps = {
   highlights: any[]
@@ -26,21 +27,6 @@ type SplitHighlightsProps = {
   onJumpToPage?: (page: number) => void
   activeTab: 'all' | 'annotations' | 'screenshots'
   searchQuery: string
-}
-
-function getPageNumber(h: any): number | undefined {
-  if (!h) return undefined
-  // Support screenshots which store page number under screenshot.pageNumber
-  if (h.kind === 'screenshot' && typeof h?.screenshot?.pageNumber === 'number') {
-    return h.screenshot.pageNumber
-  }
-  if (!h.position) return undefined
-  if (typeof h.position.pageNumber === 'number') return h.position.pageNumber
-  if (h.position.boundingRect && typeof h.position.boundingRect.pageNumber === 'number') return h.position.boundingRect.pageNumber
-  if (Array.isArray(h.position.rects) && h.position.rects.length > 0 && typeof h.position.rects[0]?.pageNumber === 'number') {
-    return h.position.rects[0].pageNumber
-  }
-  return undefined
 }
 
 export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChangeComment, onJumpToPage, activeTab, searchQuery }: SplitHighlightsProps) {
@@ -126,8 +112,21 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
   // Comment previews are capped to the first visual line via CSS truncation
 
   const orderedHighlights = React.useMemo(() => {
-    const items = highlights.map((h, i) => ({ h, i, page: getPageNumber(h) ?? Number.POSITIVE_INFINITY }))
-    items.sort((a, b) => (a.page === b.page ? a.i - b.i : a.page - b.page))
+    const items = highlights.map((h, i) => {
+      const page = resolvePageNumber(h)
+      const vertical = resolvePageVerticalPosition(h)
+      return {
+        h,
+        i,
+        page: typeof page === 'number' ? page : Number.POSITIVE_INFINITY,
+        vertical: typeof vertical === 'number' ? vertical : Number.POSITIVE_INFINITY,
+      }
+    })
+    items.sort((a, b) => {
+      if (a.page !== b.page) return a.page - b.page
+      if (a.vertical !== b.vertical) return a.vertical - b.vertical
+      return a.i - b.i
+    })
     return items.map((it) => it.h)
   }, [highlights])
 
@@ -186,7 +185,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
           ) : activeTab === 'screenshots' ? (
             <ol className="mt-4 space-y-3">
               {filteredHighlights.map((h) => {
-                const pageNumber = getPageNumber(h)
+                const pageNumber = resolvePageNumber(h)
                 return (
                   <li key={h.id}>
                     <div className="group rounded-xl border border-gray-200 bg-white p-3 shadow-sm hover:shadow transition">
@@ -316,7 +315,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
               {filteredHighlights.map((h, idx) => {
                 const isScreenshot = h?.kind === 'screenshot'
                 const text = h?.content?.text || ''
-                const pageNumber = getPageNumber(h)
+                const pageNumber = resolvePageNumber(h)
                 return (
                   <li key={h.id}>
                     <div className="group rounded-xl border border-gray-200 bg-white p-3 shadow-sm hover:shadow transition">
@@ -465,4 +464,3 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
     </div>
   )
 }
-

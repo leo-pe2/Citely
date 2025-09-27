@@ -467,8 +467,8 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     tick()
   }
 
-  // Determine pdf.js page number at a given window/client point
-  function getPageNumberAtClientPoint(clientX: number, clientY: number): number | undefined {
+  // Determine pdf.js page location at a given window/client point
+  function getPageLocationAtClientPoint(clientX: number, clientY: number): { pageNumber?: number; pageRelativeY?: number } {
     try {
       const pdfContainer = getPdfJsContainer()
       const root: ParentNode = pdfContainer || viewerRef.current || document
@@ -478,14 +478,17 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         const r = p.getBoundingClientRect()
         if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
           const val = p.getAttribute('data-page-number')
-          if (val) {
-            const n = parseInt(val, 10)
-            if (!Number.isNaN(n)) return n
+          const parsed = val ? parseInt(val, 10) : NaN
+          const pageNumber = Number.isNaN(parsed) ? undefined : parsed
+          const pageRelativeY = r.height > 0 ? Math.min(Math.max((clientY - r.top) / r.height, 0), 1) : undefined
+          if (typeof pageNumber === 'number') {
+            return { pageNumber, pageRelativeY }
           }
+          return { pageRelativeY }
         }
       }
     } catch {}
-    return undefined
+    return {}
   }
 
   const exportButtonRef = React.useRef<HTMLButtonElement | null>(null)
@@ -828,26 +831,32 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                           const id = generateId()
                           // Compute page at the center of the selection in window coords
                           let pageNumber: number | undefined
+                          let pageRelativeY: number | undefined
                           try {
                             const host = viewerRef.current as HTMLDivElement | null
                             if (host) {
                               const hostRect = host.getBoundingClientRect()
                               const cx = hostRect.left + rect.x + (rect.width / 2)
                               const cy = hostRect.top + rect.y + (rect.height / 2)
-                              pageNumber = getPageNumberAtClientPoint(cx, cy)
+                              const location = getPageLocationAtClientPoint(cx, cy)
+                              pageNumber = location.pageNumber
+                              pageRelativeY = location.pageRelativeY
                             }
                           } catch {}
                           const dpr = (typeof window !== 'undefined' && typeof window.devicePixelRatio === 'number') ? window.devicePixelRatio : 1
+                          const screenshot = {
+                            dataUrl: snap.dataUrl,
+                            pageNumber,
+                            cssWidth: rect.width,
+                            cssHeight: rect.height,
+                            devicePixelRatio: dpr,
+                            ...(typeof pageRelativeY === 'number' ? { pageRelativeY } : {}),
+                          }
                           const item = {
                             id,
                             kind: 'screenshot',
-                            screenshot: {
-                              dataUrl: snap.dataUrl,
-                              pageNumber,
-                              cssWidth: rect.width,
-                              cssHeight: rect.height,
-                              devicePixelRatio: dpr,
-                            },
+                            ...(typeof pageRelativeY === 'number' ? { pageRelativeY } : {}),
+                            screenshot,
                             comment: { text: '', emoji: '' }
                           }
                           setRphHighlights((prev) => {
