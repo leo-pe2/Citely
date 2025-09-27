@@ -7,7 +7,6 @@ import checkIcon from '../../assets/check.svg'
 import xIcon from '../../assets/x.svg'
 import filesCopyIcon from '../../assets/files_copy.svg'
 import exportIcon from '../../assets/export.svg'
-import { exportHighlightsAsPdf } from './export/pdf-export'
 import { exportHighlightsAsMarkdown } from './export/markdown-export'
 import type { ExportHighlight } from './export/types'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
@@ -491,57 +490,19 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return {}
   }
 
-  const exportButtonRef = React.useRef<HTMLButtonElement | null>(null)
-  const exportMenuRef = React.useRef<HTMLDivElement | null>(null)
-  const [isExportMenuOpen, setIsExportMenuOpen] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!isExportMenuOpen) return undefined
-    function handlePointerDown(event: MouseEvent) {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (exportMenuRef.current?.contains(target)) return
-      if (exportButtonRef.current?.contains(target)) return
-      setIsExportMenuOpen(false)
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setIsExportMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isExportMenuOpen])
-
-  const exportHighlightsData = React.useCallback(async (format: 'pdf' | 'markdown') => {
+  const handleExportMarkdown = React.useCallback(() => {
     if (!Array.isArray(rphHighlights) || rphHighlights.length === 0) {
       alert('No highlights or screenshots to export yet.')
       return
     }
     try {
       const highlights = rphHighlights as ExportHighlight[]
-      if (format === 'pdf') {
-        await exportHighlightsAsPdf({ highlights, fileName })
-      } else {
-        exportHighlightsAsMarkdown({ highlights, fileName })
-      }
+      exportHighlightsAsMarkdown({ highlights, fileName })
     } catch (error) {
-      console.error(`Failed to export ${format}`, error)
-      alert(`Failed to export ${format === 'pdf' ? 'PDF' : 'Markdown'}`)
+      console.error('Failed to export Markdown', error)
+      alert('Failed to export Markdown')
     }
   }, [rphHighlights, fileName])
-
-  const handleExportPdf = React.useCallback(async () => {
-    setIsExportMenuOpen(false)
-    await exportHighlightsData('pdf')
-  }, [exportHighlightsData])
-
-  const handleExportMarkdown = React.useCallback(async () => {
-    setIsExportMenuOpen(false)
-    await exportHighlightsData('markdown')
-  }, [exportHighlightsData])
 
   return (<>
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
@@ -583,38 +544,13 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             </div>
             <div className="relative">
               <button
-                ref={exportButtonRef}
                 className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
-                onClick={() => setIsExportMenuOpen((prev) => !prev)}
+                onClick={() => { handleExportMarkdown() }}
                 aria-label="Export highlights"
-                aria-haspopup="menu"
-                aria-expanded={isExportMenuOpen}
                 title="Export"
               >
                 <img src={exportIcon} alt="" className="h-4 w-4" />
               </button>
-              {isExportMenuOpen ? (
-                <div
-                  ref={exportMenuRef}
-                  className="absolute left-1/2 top-12 z-50 w-48 -translate-x-1/2 rounded-lg border border-gray-200 bg-white py-2 shadow-xl pointer-events-auto"
-                  role="menu"
-                >
-                  <button
-                    className="block w-full px-4 py-2 text-sm text-left text-gray-800 hover:bg-gray-100"
-                    onClick={() => { void handleExportPdf() }}
-                    role="menuitem"
-                  >
-                    Export as PDF
-                  </button>
-                  <button
-                    className="block w-full px-4 py-2 text-sm text-left text-gray-800 hover:bg-gray-100"
-                    onClick={() => { void handleExportMarkdown() }}
-                    role="menuitem"
-                  >
-                    Export as Markdown
-                  </button>
-                </div>
-              ) : null}
             </div>
           </div>
         </div>

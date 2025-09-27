@@ -20,45 +20,71 @@ function createDownload(blob: Blob, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
+function normalizeLines(value: string): string[] {
+  return value.split(/\r?\n/).map((line) => line.trim())
+}
+
+function buildBulletLines(content: string): string[] {
+  const lines = normalizeLines(content)
+  const hasContent = lines.some((line) => line.length > 0)
+  if (!hasContent) return ['-']
+  const [first, ...rest] = lines
+  const firstLine = first.length > 0 ? `- ${first}` : '-'
+  const remainder = rest.map((line) => (line.length > 0 ? `  ${line}` : '  '))
+  return [firstLine, ...remainder]
+}
+
+function buildCommentLines(comment: string): string[] {
+  const lines = normalizeLines(comment)
+  if (lines.length === 0) return []
+  const [first, ...rest] = lines
+  const formatted: string[] = []
+  formatted.push(`  Comment: ${first}`)
+  rest.forEach((line) => {
+    formatted.push(line.length > 0 ? `  ${line}` : '  ')
+  })
+  return formatted
+}
+
 export function exportHighlightsAsMarkdown({ highlights, fileName }: { highlights: ExportHighlight[]; fileName: string }): ExportResult {
   if (!Array.isArray(highlights) || highlights.length === 0) {
     throw new Error('No highlights available to export')
   }
 
   const ordered = orderHighlights(highlights)
-  const now = new Date()
   const baseName = sanitizeFileBase(fileName)
 
-  const sections: Record<string, { pageLabel: string; entries: string[] }> = {}
+  const sections: Record<string, { pageNumber?: number; entries: string[][] }> = {}
+  let screenshotCount = 0
 
-  ordered.forEach((highlight, index) => {
+  ordered.forEach((highlight) => {
     const pageNumber = resolvePageNumber(highlight)
     const pageKey = typeof pageNumber === 'number' ? String(pageNumber) : 'unassigned'
     if (!sections[pageKey]) {
-      sections[pageKey] = {
-        pageLabel: typeof pageNumber === 'number' ? `Page ${pageNumber}` : 'Unassigned',
-        entries: [],
-      }
+      sections[pageKey] = { pageNumber, entries: [] }
     }
     const section = sections[pageKey]
     const commentText = highlight?.comment?.text ? String(highlight.comment.text).trim() : ''
+    const commentLines = commentText.length > 0 ? buildCommentLines(commentText) : []
 
     if (highlight.kind === 'screenshot' && highlight?.screenshot?.dataUrl) {
-      const imageLabel = `Screenshot ${index + 1}`
-      section.entries.push(`![${imageLabel}](${highlight.screenshot.dataUrl})`)
-      if (commentText.length > 0) {
-        section.entries.push(`> ${commentText}`)
+      screenshotCount += 1
+      const lines: string[] = ['- Screenshot']
+      lines.push(`  ![Screenshot ${screenshotCount}](${highlight.screenshot.dataUrl})`)
+      if (commentLines.length > 0) {
+        lines.push(...commentLines)
       }
-      section.entries.push('')
+      section.entries.push(lines)
       return
     }
 
     const textContent = highlight?.content?.text ? String(highlight.content.text).trim() : ''
-    const bullet = textContent.length > 0 ? `- ${textContent}` : '-'
-    section.entries.push(bullet)
-    if (commentText.length > 0) {
-      section.entries.push(`  - _Comment:_ ${commentText}`)
+    const lines = buildBulletLines(textContent)
+    if (commentLines.length > 0) {
+      lines.push('  ')
+      lines.push(...commentLines)
     }
+    section.entries.push(lines)
   })
 
   const pageKeys = Object.keys(sections).sort((a, b) => {
@@ -68,21 +94,27 @@ export function exportHighlightsAsMarkdown({ highlights, fileName }: { highlight
   })
 
   const chunks: string[] = []
-  chunks.push(`# Highlights — ${fileName}`)
-  chunks.push('')
-  chunks.push(`_Exported ${now.toLocaleString()}_`)
-  chunks.push('')
-
   pageKeys.forEach((key, idx) => {
     const section = sections[key]
-    const headingPrefix = idx === 0 ? '' : '\n'
-    chunks.push(`${headingPrefix}## ${section.pageLabel}`)
-    chunks.push('')
-    chunks.push(...section.entries)
+    if (idx > 0) {
+      chunks.push('')
+    }
+    const heading = typeof section.pageNumber === 'number' ? `**Page ${section.pageNumber}**` : '**Page —**'
+    chunks.push(heading)
+    if (section.entries.length > 0) {
+      chunks.push('')
+      section.entries.forEach((entry, entryIdx) => {
+        chunks.push(entry.join('\n'))
+        if (entryIdx < section.entries.length - 1) {
+          chunks.push('')
+        }
+      })
+    }
   })
 
   const output = chunks.join('\n')
   const blob = new Blob([output], { type: 'text/markdown;charset=utf-8' })
-  createDownload(blob, `${baseName} - highlights.md`)
+  const downloadName = `markdown_${baseName}.md`
+  createDownload(blob, downloadName)
   return { ok: true }
 }
