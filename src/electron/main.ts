@@ -452,15 +452,18 @@ async function writeHighlights(projectId: string, pdfFileName: string, highlight
     await fs.writeFile(storeFile, JSON.stringify(toPersist, null, 2), 'utf-8');
     // Auto-promote kanban status to 'ongoing' if there are any highlights/screenshots for this PDF
     try {
+        const absolutePdfPath = path.join(projectDir, pdfFileName);
+        const current = await readKanbanStatuses(projectId);
+        const currentStatus = current[absolutePdfPath];
         if (Array.isArray(highlights) && highlights.length > 0) {
-            const absolutePdfPath = path.join(projectDir, pdfFileName);
-            const current = await readKanbanStatuses(projectId);
-            const currentStatus = current[absolutePdfPath];
             // Only promote if currently 'todo' or unset; never override explicit 'done'
             if (!currentStatus || currentStatus === 'todo') {
                 current[absolutePdfPath] = 'ongoing';
                 await writeKanbanStatuses(projectId, current);
             }
+        } else if (currentStatus === 'ongoing' || currentStatus === 'done') {
+            current[absolutePdfPath] = 'todo';
+            await writeKanbanStatuses(projectId, current);
         }
     } catch {}
     return { ok: true };

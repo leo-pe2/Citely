@@ -19,7 +19,8 @@ export type ItemRow = {
   projectId?: string
 }
 
-export const columns: ColumnDef<ItemRow>[] = [
+export function createColumns(onStatusClick: (row: ItemRow) => void): ColumnDef<ItemRow>[] {
+  return [
   {
     accessorKey: "title",
     header: ({ column }) => (
@@ -66,15 +67,26 @@ export const columns: ColumnDef<ItemRow>[] = [
     cell: ({ row }) => {
       const status = (row.getValue("status") as string | null) ?? ""
       const cfg = (() => {
-        if (status === 'ongoing') return { dot: '#f77f00', bg: 'bg-[#f77f00]/15', text: 'text-gray-700', label: 'Ongoing' }
-        if (status === 'done') return { dot: '#4c956c', bg: 'bg-[#4c956c]/15', text: 'text-gray-700', label: 'Done' }
-        return { dot: '#9ca3af', bg: 'bg-gray-300/30', text: 'text-gray-700', label: 'To Do' }
+        if (status === 'ongoing') return { dot: '#f77f00', background: 'rgba(247, 127, 0, 0.15)', text: 'text-gray-700', label: 'Ongoing' as const }
+        if (status === 'done') return { dot: '#4c956c', background: 'rgba(76, 149, 108, 0.18)', text: 'text-gray-700', label: 'Done' as const }
+        return { dot: '#9ca3af', background: 'rgba(156, 163, 175, 0.2)', text: 'text-gray-700', label: 'To Do' as const }
       })()
+      const isInteractive = status === 'ongoing' || status === 'done'
       return (
-        <div className={`inline-flex items-center text-xs font-medium rounded-full px-2 py-1 ${cfg.bg} ${cfg.text}`}>
-          <span className="inline-block h-2.5 w-2.5 rounded-full mr-2" style={{ backgroundColor: cfg.dot }} />
+        <button
+          type="button"
+          className={`inline-flex items-center gap-1 text-xs font-medium rounded-full py-1 px-2 bg-transparent border-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${cfg.text} ${
+            isInteractive ? 'cursor-pointer hover:opacity-85 transition-opacity duration-150' : 'cursor-default'
+          }`}
+          onClick={() => {
+            if (isInteractive) onStatusClick(row.original)
+          }}
+          disabled={!isInteractive}
+          style={{ backgroundColor: cfg.background }}
+        >
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cfg.dot }} />
           {cfg.label}
-        </div>
+        </button>
       )
     },
   },
@@ -254,4 +266,5 @@ export const columns: ColumnDef<ItemRow>[] = [
     },
     enableSorting: false,
   },
-]
+  ]
+}

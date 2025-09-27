@@ -1,15 +1,80 @@
 import React from 'react'
 import { DataTable } from './data-table'
-import { columns, type ItemRow } from './columns'
+import { createColumns, type ItemRow } from './columns'
 
 type ItemsTableProps = { projectId: string }
 type ProjectItem = { fileName: string; path: string }
+type ItemStatus = 'todo' | 'ongoing' | 'done'
+type StatusMap = Record<string, ItemStatus>
+
+const STATUS_EVENT = 'project:item:status:updated'
 
 export function ItemsTable({ projectId }: ItemsTableProps) {
   const [items, setItems] = React.useState<ProjectItem[]>([])
   const [pathToTitle, setPathToTitle] = React.useState<Record<string, string>>({})
-  const [pathToStatus, setPathToStatus] = React.useState<Record<string, 'todo' | 'ongoing' | 'done'>>({})
+  const [pathToStatus, setPathToStatus] = React.useState<StatusMap>({})
   const [pathToInfo, setPathToInfo] = React.useState<Record<string, { authors: string | null; year: number | null; pages: number | null; doiOrIsbn: string | null; added: string | null; lastUsed: string | null }>>({})
+  const persistTimerRef = React.useRef<number | null>(null)
+
+  const schedulePersist = React.useCallback((next: StatusMap) => {
+    const api = (window as unknown as { api?: { projects: { kanban?: { set?: (projectId: string, statuses: Record<string, string>) => Promise<{ ok: true }> } } } }).api
+    if (!api?.projects.kanban?.set) return
+    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
+    const payload = { ...next }
+    persistTimerRef.current = window.setTimeout(() => {
+      persistTimerRef.current = null
+      try {
+        api.projects.kanban!.set!(projectId, payload as unknown as Record<string, string>)
+      } catch {}
+    }, 250)
+  }, [projectId])
+
+  const applyStatusUpdate = React.useCallback((absolutePath: string, nextStatus: ItemStatus, options?: { persist?: boolean }) => {
+    setPathToStatus((prev) => {
+      if (nextStatus === 'todo') {
+        if (!(absolutePath in prev)) return prev
+        const nextMap = { ...prev }
+        delete nextMap[absolutePath]
+        if (options?.persist !== false) schedulePersist(nextMap)
+        return nextMap
+      }
+      const current = prev[absolutePath]
+      if (current === nextStatus) return prev
+      const nextMap = { ...prev, [absolutePath]: nextStatus }
+      if (options?.persist !== false) schedulePersist(nextMap)
+      return nextMap
+    })
+  }, [schedulePersist])
+
+  const removeStatus = React.useCallback((absolutePath: string, options?: { persist?: boolean }) => {
+    setPathToStatus((prev) => {
+      if (!(absolutePath in prev)) return prev
+      const nextMap = { ...prev }
+      delete nextMap[absolutePath]
+      if (options?.persist !== false) schedulePersist(nextMap)
+      return nextMap
+    })
+  }, [schedulePersist])
+
+  React.useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
+    }
+  }, [])
+
+  function normalizeStatus(value: unknown): ItemStatus {
+    return value === 'ongoing' || value === 'done' ? value : 'todo'
+  }
+
+  const handleStatusClick = React.useCallback((row: ItemRow) => {
+    const path = row.path
+    if (!path) return
+    const current = normalizeStatus(row.status)
+    if (current === 'todo') return
+    const next: ItemStatus = current === 'ongoing' ? 'done' : 'ongoing'
+    applyStatusUpdate(path, next)
+    window.dispatchEvent(new CustomEvent(STATUS_EVENT, { detail: { projectId, updates: { [path]: next } } }))
+  }, [applyStatusUpdate, projectId])
 
   // Fetch items list
   React.useEffect(() => {
@@ -51,10 +116,11 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
       const detail = (e as CustomEvent<{ path: string }>).detail
       if (!detail || !detail.path) return
       setItems((prev) => prev.filter((it) => it.path !== detail.path))
+      removeStatus(detail.path)
     }
     window.addEventListener('project:item:deleted', onDeleted)
     return () => window.removeEventListener('project:item:deleted', onDeleted)
-  }, [])
+  }, [removeStatus])
 
   // Update last used date immediately when notified
   React.useEffect(() => {
@@ -138,7 +204,7 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
         const saved = await api?.projects.kanban?.get?.(projectId)
         if (!mounted) return
         if (!saved) { setPathToStatus({}); return }
-        const normalized: Record<string, 'todo' | 'ongoing' | 'done'> = {}
+        const normalized: StatusMap = {}
         for (const [k, v] of Object.entries(saved)) {
           const sv = (v as any) === 'underReview' ? 'ongoing' : (v as 'todo' | 'ongoing' | 'done')
           if (sv === 'todo' || sv === 'ongoing' || sv === 'done') normalized[k] = sv
@@ -152,6 +218,27 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
     loadStatuses()
     return () => { mounted = false }
   }, [projectId])
+
+  React.useEffect(() => {
+    function onStatusUpdated(e: Event) {
+      const detail = (e as CustomEvent<{ projectId: string; updates?: Record<string, string>; remove?: string[] }>).detail
+      if (!detail || detail.projectId !== projectId) return
+      if (detail.updates) {
+        for (const [absolutePath, status] of Object.entries(detail.updates)) {
+          if (status === 'todo' || status === 'ongoing' || status === 'done') {
+            applyStatusUpdate(absolutePath, status as ItemStatus, { persist: false })
+          }
+        }
+      }
+      if (Array.isArray(detail.remove)) {
+        detail.remove.forEach((absolutePath) => {
+          if (typeof absolutePath === 'string') removeStatus(absolutePath, { persist: false })
+        })
+      }
+    }
+    window.addEventListener(STATUS_EVENT, onStatusUpdated)
+    return () => window.removeEventListener(STATUS_EVENT, onStatusUpdated)
+  }, [projectId, applyStatusUpdate, removeStatus])
 
   // Derive rows from items + titles + statuses so updates propagate correctly
   const rows = React.useMemo<ItemRow[]>(() => {
@@ -167,8 +254,9 @@ export function ItemsTable({ projectId }: ItemsTableProps) {
       path: it.path,
       projectId,
     }))
-  }, [items, pathToTitle, pathToStatus, pathToInfo])
+  }, [items, pathToTitle, pathToStatus, pathToInfo, projectId])
 
-  return <DataTable columns={columns} data={rows} />
+  const tableColumns = React.useMemo(() => createColumns(handleStatusClick), [handleStatusClick])
+
+  return <DataTable columns={tableColumns} data={rows} />
 }
-

@@ -7,7 +7,9 @@ import checkIcon from '../../assets/check.svg'
 import xIcon from '../../assets/x.svg'
 import filesCopyIcon from '../../assets/files_copy.svg'
 import exportIcon from '../../assets/export.svg'
-import { Document, Page, Text, View, Image as PdfImage, StyleSheet, pdf } from '@react-pdf/renderer'
+import { exportHighlightsAsPdf } from './export/pdf-export'
+import { exportHighlightsAsMarkdown } from './export/markdown-export'
+import type { ExportHighlight } from './export/types'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
 type SplitPdfProps = {
@@ -43,6 +45,29 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const [activeTab] = React.useState<'all' | 'annotations' | 'screenshots'>('all')
   const [pageTab, setPageTab] = React.useState<'annotate' | 'writing'>('annotate')
   const [searchQuery, setSearchQuery] = React.useState('')
+
+  const STATUS_EVENT = 'project:item:status:updated'
+
+  const updateKanbanStatus = React.useCallback(async (nextHighlights: any[]) => {
+    const api = (window as any).api
+    if (!api?.projects?.kanban?.get || !api?.projects?.kanban?.set) return
+    try {
+      const current = (await api.projects.kanban.get(projectId)) || {}
+      const absolutePath: string = path
+      const existing = current[absolutePath]
+      if (Array.isArray(nextHighlights) && nextHighlights.length > 0) {
+        if (!existing || existing === 'todo') {
+          current[absolutePath] = 'ongoing'
+          await api.projects.kanban.set(projectId, current)
+          window.dispatchEvent(new CustomEvent(STATUS_EVENT, { detail: { projectId, updates: { [absolutePath]: 'ongoing' } } }))
+        }
+      } else if (existing === 'ongoing' || existing === 'done') {
+        current[absolutePath] = 'todo'
+        await api.projects.kanban.set(projectId, current)
+        window.dispatchEvent(new CustomEvent(STATUS_EVENT, { detail: { projectId, updates: { [absolutePath]: 'todo' } } }))
+      }
+    } catch {}
+  }, [path, projectId])
 
   // Trigger layout recalculation when zoom changes (pdf.js & overlay layers often listen to resize)
   React.useEffect(() => {
@@ -105,20 +130,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
       console.log('[PDF] saveHighlightsNow count=', nextHighlights.length)
       api.projects.highlights.set(projectId, fileName, nextHighlights)
       lastSavedSnapshotRef.current = JSON.stringify(nextHighlights)
-      // Promote kanban status immediately when any highlight/screenshot exists
-      if (Array.isArray(nextHighlights) && nextHighlights.length > 0 && api?.projects?.kanban?.get && api?.projects?.kanban?.set) {
-        ;(async () => {
-          try {
-            const current = (await api.projects.kanban.get(projectId)) || {}
-            const absolutePath: string = path
-            const existing = current[absolutePath]
-            if (!existing || existing === 'todo') {
-              current[absolutePath] = 'ongoing'
-              await api.projects.kanban.set(projectId, current)
-            }
-          } catch {}
-        })()
-      }
+      void updateKanbanStatus(nextHighlights)
     } catch (e) {
       console.warn('[PDF] saveHighlightsNow failed', e)
     }
@@ -318,20 +330,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
         console.log('[PDF] debounce-save highlights count=', rphHighlights.length)
         api.projects.highlights.set(projectId, fileName, rphHighlights)
         lastSavedSnapshotRef.current = JSON.stringify(rphHighlights)
-        // Also promote kanban on debounce save (no-op if already ongoing/done)
-        if (Array.isArray(rphHighlights) && rphHighlights.length > 0 && api?.projects?.kanban?.get && api?.projects?.kanban?.set) {
-          ;(async () => {
-            try {
-              const current = (await api.projects.kanban.get(projectId)) || {}
-              const absolutePath: string = path
-              const existing = current[absolutePath]
-              if (!existing || existing === 'todo') {
-                current[absolutePath] = 'ongoing'
-                await api.projects.kanban.set(projectId, current)
-              }
-            } catch {}
-          })()
-        }
+        void updateKanbanStatus(rphHighlights)
       } catch (e) {
         console.warn('[PDF] debounce-save failed', e)
       }
@@ -340,7 +339,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return () => {
       if (id) window.clearTimeout(id)
     }
-  }, [projectId, fileName, rphHighlights])
+  }, [projectId, fileName, rphHighlights, updateKanbanStatus])
 
   // Force layout refresh so highlights appear immediately without user interaction
   React.useEffect(() => {
@@ -489,171 +488,61 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     return undefined
   }
 
-  const exportStyles = React.useMemo(() => StyleSheet.create({
-    page: { padding: 24 },
-    header: { fontSize: 14, marginBottom: 12 },
-    subheader: { fontSize: 10, color: '#666', marginBottom: 12 },
-    item: { marginBottom: 14, alignItems: 'flex-start' },
-    meta: { fontSize: 10, color: '#444', marginBottom: 6 },
-    textBlock: { fontSize: 11, lineHeight: 1.35 },
-    comment: { marginTop: 6, marginLeft: 12, fontSize: 11, lineHeight: 1.35 },
-    pageSection: { marginBottom: 16 },
-    pageHeader: { fontSize: 12, marginTop: 4, marginBottom: 8 },
-    // Image size is set per-element to preserve natural size (no upscaling)
-  }), [])
+  const exportButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const exportMenuRef = React.useRef<HTMLDivElement | null>(null)
+  const [isExportMenuOpen, setIsExportMenuOpen] = React.useState(false)
 
-  function getOrderedForExport(list: any[]): any[] {
-    const items = list.map((h, i) => ({ h, i, page: getPageNumberFromHighlight(h) ?? Number.POSITIVE_INFINITY }))
-    items.sort((a, b) => (a.page === b.page ? a.i - b.i : a.page - b.page))
-    return items.map((it) => it.h)
-  }
-
-  function getImageNaturalSize(dataUrl: string): Promise<{ width: number; height: number }> {
-    return new Promise((resolve, reject) => {
-      try {
-        const img: HTMLImageElement = new window.Image()
-        img.addEventListener('load', () => {
-          resolve({ width: img.naturalWidth || img.width, height: img.naturalHeight || img.height })
-        })
-        img.addEventListener('error', () => {
-          reject(new Error('Failed to load image'))
-        })
-        img.src = dataUrl
-      } catch (e) {
-        reject(e)
-      }
-    })
-  }
-
-  async function handleExport() {
-    try {
-      const ordered = getOrderedForExport(rphHighlights)
-      const now = new Date()
-      const fileBase = fileName.replace(/\.[^/.]+$/, '')
-      // A4 width is ~595.28pt; subtract horizontal padding (24*2) to get content width
-      const CONTENT_WIDTH = 595.28 - (24 * 2)
-      const PX_TO_PT = 72 / 96 // assume images are 96dpi when converting px -> pt
-      // Pre-measure screenshots to render at natural size (no upscaling)
-      const measuredMap: Record<string, { width: number; height: number } | undefined> = {}
-      await Promise.all(
-        ordered.map(async (h) => {
-          if (h?.kind === 'screenshot' && h?.screenshot?.dataUrl) {
-            try {
-              measuredMap[h.id] = await getImageNaturalSize(h.screenshot.dataUrl)
-            } catch {
-              measuredMap[h.id] = undefined
-            }
-          }
-        })
-      )
-      // Group items by page for clearer structure
-      const pageToItems: Record<string, any[]> = {}
-      for (const h of ordered) {
-        const p = getPageNumberFromHighlight(h)
-        const key = typeof p === 'number' ? String(p) : 'unassigned'
-        if (!pageToItems[key]) pageToItems[key] = []
-        pageToItems[key].push(h)
-      }
-      const sortedPageKeys = Object.keys(pageToItems).sort((a, b) => {
-        const aa = a === 'unassigned' ? Number.POSITIVE_INFINITY : parseInt(a, 10)
-        const bb = b === 'unassigned' ? Number.POSITIVE_INFINITY : parseInt(b, 10)
-        return aa - bb
-      })
-
-      const doc = (
-        <Document>
-          <Page size="A4" style={exportStyles.page}>
-            <Text style={exportStyles.header}>Highlights Export — {fileName}</Text>
-            <Text style={exportStyles.subheader}>{now.toLocaleString()}</Text>
-            {sortedPageKeys.map((key) => {
-              const pageNum = key === 'unassigned' ? undefined : parseInt(key, 10)
-              const items = pageToItems[key]
-              return (
-                <View key={key} style={exportStyles.pageSection} wrap>
-                  <Text style={exportStyles.pageHeader}>{typeof pageNum === 'number' ? `Page ${pageNum}` : 'Unassigned'}</Text>
-                  {items.map((h, idx) => {
-                    const isScreenshot = h?.kind === 'screenshot'
-                    const text = h?.content?.text ? String(h.content.text) : ''
-                    const comment = h?.comment?.text ? String(h.comment.text) : ''
-                    return (
-                      <View key={h.id || `${key}_${idx}`} style={exportStyles.item} wrap>
-                        {isScreenshot ? (
-                          h?.screenshot?.dataUrl ? (
-                            (() => {
-                              const nat = measuredMap[h.id]
-                              const dpr = typeof h?.screenshot?.devicePixelRatio === 'number' && h.screenshot.devicePixelRatio > 0 ? h.screenshot.devicePixelRatio : 1
-                              const cssW = typeof h?.screenshot?.cssWidth === 'number' ? h.screenshot.cssWidth : undefined
-                              const cssH = typeof h?.screenshot?.cssHeight === 'number' ? h.screenshot.cssHeight : undefined
-                              let baseWidthPt: number | null = null
-                              let baseHeightPt: number | null = null
-                              if (typeof cssW === 'number' && typeof cssH === 'number' && cssW > 0 && cssH > 0) {
-                                baseWidthPt = cssW * PX_TO_PT
-                                baseHeightPt = cssH * PX_TO_PT
-                              } else if (nat && nat.width > 0 && nat.height > 0) {
-                                baseWidthPt = (nat.width / dpr) * PX_TO_PT
-                                baseHeightPt = (nat.height / dpr) * PX_TO_PT
-                              }
-                              if (baseWidthPt && baseHeightPt) {
-                                const displayWidth = Math.min(baseWidthPt, CONTENT_WIDTH)
-                                const displayHeight = (baseHeightPt * displayWidth) / baseWidthPt
-                                return (
-                                  <PdfImage
-                                    src={h.screenshot.dataUrl}
-                                    style={{
-                                      width: displayWidth,
-                                      height: displayHeight,
-                                      minWidth: displayWidth,
-                                      maxWidth: displayWidth,
-                                      minHeight: displayHeight,
-                                      maxHeight: displayHeight,
-                                      alignSelf: 'flex-start',
-                                      objectFit: 'scale-down',
-                                    }}
-                                  />
-                                )
-                              }
-                              const fallbackW = Math.min(320 * PX_TO_PT, CONTENT_WIDTH)
-                              return (
-                                <PdfImage
-                                  src={h.screenshot.dataUrl}
-                                  style={{ width: fallbackW, minWidth: fallbackW, maxWidth: fallbackW, alignSelf: 'flex-start', objectFit: 'scale-down' }}
-                                />
-                              )
-                            })()
-                          ) : null
-                        ) : (
-                          text ? <Text style={exportStyles.textBlock}>- {text}</Text> : <Text style={exportStyles.textBlock}>-</Text>
-                        )}
-                        {comment && <Text style={exportStyles.comment}>• {comment}</Text>}
-                      </View>
-                    )
-                  })}
-                </View>
-              )
-            })}
-          </Page>
-        </Document>
-      )
-      const blob = await pdf(doc).toBlob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${fileBase} - highlights.pdf`
-      document.body.appendChild(a)
-      a.click()
-      setTimeout(() => {
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-      }, 0)
-    } catch (e) {
-      console.error('Export failed', e)
-      alert('Failed to export PDF')
+  React.useEffect(() => {
+    if (!isExportMenuOpen) return undefined
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (exportMenuRef.current?.contains(target)) return
+      if (exportButtonRef.current?.contains(target)) return
+      setIsExportMenuOpen(false)
     }
-  }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsExportMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isExportMenuOpen])
+
+  const exportHighlightsData = React.useCallback(async (format: 'pdf' | 'markdown') => {
+    if (!Array.isArray(rphHighlights) || rphHighlights.length === 0) {
+      alert('No highlights or screenshots to export yet.')
+      return
+    }
+    try {
+      const highlights = rphHighlights as ExportHighlight[]
+      if (format === 'pdf') {
+        await exportHighlightsAsPdf({ highlights, fileName })
+      } else {
+        exportHighlightsAsMarkdown({ highlights, fileName })
+      }
+    } catch (error) {
+      console.error(`Failed to export ${format}`, error)
+      alert(`Failed to export ${format === 'pdf' ? 'PDF' : 'Markdown'}`)
+    }
+  }, [rphHighlights, fileName])
+
+  const handleExportPdf = React.useCallback(async () => {
+    setIsExportMenuOpen(false)
+    await exportHighlightsData('pdf')
+  }, [exportHighlightsData])
+
+  const handleExportMarkdown = React.useCallback(async () => {
+    setIsExportMenuOpen(false)
+    await exportHighlightsData('markdown')
+  }, [exportHighlightsData])
 
   return (<>
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
-      <div className="relative flex items-center px-6 py-4 border-b border-gray-200">
+      <div className="relative flex items-center pl-6 pr-4 py-4 border-b border-gray-200">
         <div className="flex items-center gap-2 min-w-0">
           <nav className="inline-flex rounded-md border border-gray-200 bg-gray-50 p-0.5">
             <button
@@ -670,7 +559,7 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             </button>
           </nav>
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 px-4 w-full max-w-md pointer-events-none">
+        <div className="absolute left-1/2 -translate-x-1/2 px-4 w-full max-w-md pointer-events-none z-40">
           <div className="relative pointer-events-auto flex items-center gap-2">
             <div className="relative flex-1">
               <input
@@ -689,17 +578,44 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
                 </button>
               ) : null}
             </div>
-            <button
-              className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
-              onClick={handleExport}
-              aria-label="Export highlights to PDF"
-              title="Export"
-            >
-              <img src={exportIcon} alt="" className="h-4 w-4" />
-            </button>
+            <div className="relative">
+              <button
+                ref={exportButtonRef}
+                className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
+                onClick={() => setIsExportMenuOpen((prev) => !prev)}
+                aria-label="Export highlights"
+                aria-haspopup="menu"
+                aria-expanded={isExportMenuOpen}
+                title="Export"
+              >
+                <img src={exportIcon} alt="" className="h-4 w-4" />
+              </button>
+              {isExportMenuOpen ? (
+                <div
+                  ref={exportMenuRef}
+                  className="absolute left-1/2 top-12 z-50 w-48 -translate-x-1/2 rounded-lg border border-gray-200 bg-white py-2 shadow-xl pointer-events-auto"
+                  role="menu"
+                >
+                  <button
+                    className="block w-full px-4 py-2 text-sm text-left text-gray-800 hover:bg-gray-100"
+                    onClick={() => { void handleExportPdf() }}
+                    role="menuitem"
+                  >
+                    Export as PDF
+                  </button>
+                  <button
+                    className="block w-full px-4 py-2 text-sm text-left text-gray-800 hover:bg-gray-100"
+                    onClick={() => { void handleExportMarkdown() }}
+                    role="menuitem"
+                  >
+                    Export as Markdown
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2 min-w-0">
+        <div className="ml-auto flex items-center gap-3 min-w-0">
           <button
             className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
             onClick={onClose}
@@ -1023,4 +939,3 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     </>
   )
 }
-
