@@ -8,7 +8,7 @@ import checkIcon from '../../assets/check.svg'
 import xIcon from '../../assets/x.svg'
 import filesCopyIcon from '../../assets/files_copy.svg'
 import exportIcon from '../../assets/export.svg'
-import { exportHighlightsAsMarkdown } from './export/markdown-export'
+import { exportHighlightsAsMarkdown, exportNotesAsMarkdown } from './export/markdown-export'
 import type { ExportHighlight } from './export/types'
 // react-pdf-highlighter includes PDF.js styles via its CSS import in index.css
 
@@ -520,117 +520,10 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     }
   }, [rphHighlights, fileName])
 
-  // Minimal HTML -> Markdown converter tailored to our editor output
-  function htmlToMarkdownString(html: string): string {
-    const container = document.createElement('div')
-    container.innerHTML = html
-
-    function repeat(str: string, n: number): string { return new Array(n + 1).join(str) }
-
-    function processInline(node: Node): string {
-      if (node.nodeType === Node.TEXT_NODE) {
-        return String(node.nodeValue || '').replace(/\s+/g, ' ')
-      }
-      if (!(node instanceof HTMLElement)) return ''
-      const tag = node.tagName.toLowerCase()
-      const inner = Array.from(node.childNodes).map(processInline).join('')
-      if (tag === 'strong' || tag === 'b') return inner ? `**${inner}**` : ''
-      if (tag === 'em' || tag === 'i') return inner ? `*${inner}*` : ''
-      if (tag === 'code') return inner ? `\`${inner}\`` : ''
-      if (tag === 'br') return '\n'
-      if (tag === 'a') {
-        const href = (node.getAttribute('href') || '').trim()
-        const text = inner.trim() || href
-        if (!href) return text
-        return `[${text}](${href})`
-      }
-      // span or unknown inline
-      return inner
-    }
-
-    function processBlock(node: Node, indentLevel: number): string {
-      if (node.nodeType === Node.TEXT_NODE) {
-        return String((node.nodeValue || '').trim())
-      }
-      if (!(node instanceof HTMLElement)) return ''
-      const tag = node.tagName.toLowerCase()
-      const indent = repeat('  ', indentLevel)
-
-      if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
-        const level = Math.min(6, parseInt(tag.slice(1), 10) || 1)
-        const text = Array.from(node.childNodes).map(processInline).join('').trim()
-        return `${repeat('#', level)} ${text}\n\n`
-      }
-      if (tag === 'p') {
-        const text = Array.from(node.childNodes).map(processInline).join('').replace(/\n+/g, '\n').trim()
-        return text ? `${text}\n\n` : '\n'
-      }
-      if (tag === 'br') {
-        return '\n'
-      }
-      if (tag === 'ul' || tag === 'ol') {
-        const isOrdered = tag === 'ol'
-        let idx = 1
-        const lines: string[] = []
-        for (const child of Array.from(node.children)) {
-          if (child.tagName.toLowerCase() !== 'li') continue
-          // Split li into inline text and nested lists
-          const nestedBlocks = Array.from(child.children).filter((c) => {
-            const t = c.tagName?.toLowerCase?.() || ''
-            return t === 'ul' || t === 'ol'
-          })
-          const inlinePart = Array.from(child.childNodes).filter((n) => !(n instanceof HTMLElement && (n.tagName.toLowerCase() === 'ul' || n.tagName.toLowerCase() === 'ol')))
-          const inlineText = inlinePart.map(processInline).join('').replace(/\n+/g, ' ').trim()
-          const marker = isOrdered ? `${idx}. ` : `- `
-          lines.push(`${indent}${marker}${inlineText || ''}`)
-          for (const n of nestedBlocks) {
-            const nested = processBlock(n, indentLevel + 1).trimEnd()
-            if (nested) lines.push(nested)
-          }
-          idx += 1
-        }
-        return lines.join('\n') + '\n\n'
-      }
-      if (tag === 'li') {
-        // Handled by parent lists; fallback to inline
-        const text = Array.from(node.childNodes).map(processInline).join('').trim()
-        return text ? `${indent}- ${text}\n` : ''
-      }
-      if (tag === 'div' || tag === 'section' || tag === 'article') {
-        const parts = Array.from(node.childNodes).map((n) => processBlock(n, indentLevel)).join('')
-        return parts
-      }
-      // Fallback: treat as inline content
-      return Array.from(node.childNodes).map(processInline).join('')
-    }
-
-    const md = Array.from(container.childNodes).map((n) => processBlock(n, 0)).join('')
-    // Normalize excessive blank lines
-    return md.replace(/\s+$/g, '').replace(/\n{3,}/g, '\n\n')
-  }
 
   const handleExportWriting = React.useCallback(async () => {
     try {
-      const api = (window as any).api
-      const baseName = (fileName.replace(/\.[^/.]+$/, '').trim() || 'document')
-      const mdFileName = `${baseName}.md`
-      const content: string | undefined = await api?.projects?.markdown?.get?.(projectId, mdFileName)
-      const raw = typeof content === 'string' ? content : ''
-      const isHtml = raw.trim().startsWith('<')
-      const text = isHtml ? htmlToMarkdownString(raw) : raw
-      if (!text || text.trim().length === 0) {
-        alert('No notes to export yet.')
-        return
-      }
-      const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `notes_${baseName}.md`
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      setTimeout(() => URL.revokeObjectURL(url), 0)
+      await exportNotesAsMarkdown({ projectId, fileName })
     } catch (error) {
       console.error('Failed to export notes', error)
       alert('Failed to export notes')
