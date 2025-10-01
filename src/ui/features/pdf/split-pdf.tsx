@@ -1,5 +1,6 @@
 import React from 'react'
 import SplitHighlights from './split-highlights'
+import SplitMarkdownEditor from './split-markdown-editor'
 import { PdfLoader, PdfHighlighter, Highlight } from 'react-pdf-highlighter'
 import PdfToolbar from './pdf-toolbar'
 import PdfZoomToolbar from './pdf-zoom-toolbar'
@@ -44,6 +45,9 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   const [activeTab] = React.useState<'all' | 'annotations' | 'screenshots'>('all')
   const [pageTab, setPageTab] = React.useState<'annotate' | 'writing'>('annotate')
   const [searchQuery, setSearchQuery] = React.useState('')
+  const [editorFormat, setEditorFormat] = React.useState<string>('p')
+  const [editorBold, setEditorBold] = React.useState<boolean>(false)
+  const [editorItalic, setEditorItalic] = React.useState<boolean>(false)
 
   const STATUS_EVENT = 'project:item:status:updated'
 
@@ -72,6 +76,18 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
   React.useEffect(() => {
     try { window.dispatchEvent(new Event('resize')) } catch {}
   }, [pdfScaleValue])
+
+  // Listen for editor format changes
+  React.useEffect(() => {
+    function handleFormatChange(e: Event) {
+      const customEvent = e as CustomEvent<{ format: string; bold: boolean; italic: boolean }>
+      setEditorFormat(customEvent.detail.format)
+      setEditorBold(customEvent.detail.bold || false)
+      setEditorItalic(customEvent.detail.italic || false)
+    }
+    window.addEventListener('editor-format-change', handleFormatChange)
+    return () => window.removeEventListener('editor-format-change', handleFormatChange)
+  }, [])
 
   
   function getPageNumberFromHighlight(h: any): number | undefined {
@@ -504,6 +520,123 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
     }
   }, [rphHighlights, fileName])
 
+  // Minimal HTML -> Markdown converter tailored to our editor output
+  function htmlToMarkdownString(html: string): string {
+    const container = document.createElement('div')
+    container.innerHTML = html
+
+    function repeat(str: string, n: number): string { return new Array(n + 1).join(str) }
+
+    function processInline(node: Node): string {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return String(node.nodeValue || '').replace(/\s+/g, ' ')
+      }
+      if (!(node instanceof HTMLElement)) return ''
+      const tag = node.tagName.toLowerCase()
+      const inner = Array.from(node.childNodes).map(processInline).join('')
+      if (tag === 'strong' || tag === 'b') return inner ? `**${inner}**` : ''
+      if (tag === 'em' || tag === 'i') return inner ? `*${inner}*` : ''
+      if (tag === 'code') return inner ? `\`${inner}\`` : ''
+      if (tag === 'br') return '\n'
+      if (tag === 'a') {
+        const href = (node.getAttribute('href') || '').trim()
+        const text = inner.trim() || href
+        if (!href) return text
+        return `[${text}](${href})`
+      }
+      // span or unknown inline
+      return inner
+    }
+
+    function processBlock(node: Node, indentLevel: number): string {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return String((node.nodeValue || '').trim())
+      }
+      if (!(node instanceof HTMLElement)) return ''
+      const tag = node.tagName.toLowerCase()
+      const indent = repeat('  ', indentLevel)
+
+      if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+        const level = Math.min(6, parseInt(tag.slice(1), 10) || 1)
+        const text = Array.from(node.childNodes).map(processInline).join('').trim()
+        return `${repeat('#', level)} ${text}\n\n`
+      }
+      if (tag === 'p') {
+        const text = Array.from(node.childNodes).map(processInline).join('').replace(/\n+/g, '\n').trim()
+        return text ? `${text}\n\n` : '\n'
+      }
+      if (tag === 'br') {
+        return '\n'
+      }
+      if (tag === 'ul' || tag === 'ol') {
+        const isOrdered = tag === 'ol'
+        let idx = 1
+        const lines: string[] = []
+        for (const child of Array.from(node.children)) {
+          if (child.tagName.toLowerCase() !== 'li') continue
+          // Split li into inline text and nested lists
+          const nestedBlocks = Array.from(child.children).filter((c) => {
+            const t = c.tagName?.toLowerCase?.() || ''
+            return t === 'ul' || t === 'ol'
+          })
+          const inlinePart = Array.from(child.childNodes).filter((n) => !(n instanceof HTMLElement && (n.tagName.toLowerCase() === 'ul' || n.tagName.toLowerCase() === 'ol')))
+          const inlineText = inlinePart.map(processInline).join('').replace(/\n+/g, ' ').trim()
+          const marker = isOrdered ? `${idx}. ` : `- `
+          lines.push(`${indent}${marker}${inlineText || ''}`)
+          for (const n of nestedBlocks) {
+            const nested = processBlock(n, indentLevel + 1).trimEnd()
+            if (nested) lines.push(nested)
+          }
+          idx += 1
+        }
+        return lines.join('\n') + '\n\n'
+      }
+      if (tag === 'li') {
+        // Handled by parent lists; fallback to inline
+        const text = Array.from(node.childNodes).map(processInline).join('').trim()
+        return text ? `${indent}- ${text}\n` : ''
+      }
+      if (tag === 'div' || tag === 'section' || tag === 'article') {
+        const parts = Array.from(node.childNodes).map((n) => processBlock(n, indentLevel)).join('')
+        return parts
+      }
+      // Fallback: treat as inline content
+      return Array.from(node.childNodes).map(processInline).join('')
+    }
+
+    const md = Array.from(container.childNodes).map((n) => processBlock(n, 0)).join('')
+    // Normalize excessive blank lines
+    return md.replace(/\s+$/g, '').replace(/\n{3,}/g, '\n\n')
+  }
+
+  const handleExportWriting = React.useCallback(async () => {
+    try {
+      const api = (window as any).api
+      const baseName = (fileName.replace(/\.[^/.]+$/, '').trim() || 'document')
+      const mdFileName = `${baseName}.md`
+      const content: string | undefined = await api?.projects?.markdown?.get?.(projectId, mdFileName)
+      const raw = typeof content === 'string' ? content : ''
+      const isHtml = raw.trim().startsWith('<')
+      const text = isHtml ? htmlToMarkdownString(raw) : raw
+      if (!text || text.trim().length === 0) {
+        alert('No notes to export yet.')
+        return
+      }
+      const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `notes_${baseName}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) {
+      console.error('Failed to export notes', error)
+      alert('Failed to export notes')
+    }
+  }, [projectId, fileName])
+
   return (<>
     <div className="flex-1 min-w-0 w-full h-full flex flex-col">
       <div className="relative flex items-center pl-6 pr-4 py-4 border-b border-gray-200">
@@ -523,38 +656,114 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
             </button>
           </nav>
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 px-4 w-full max-w-md pointer-events-none z-40">
-          <div className="relative pointer-events-auto flex items-center gap-2">
-            <div className="relative flex-1">
-              <input
-                className="w-full h-9 pl-3 pr-8 text-sm rounded-lg border border-gray-200 bg-white placeholder:text-gray-400 placeholder:text-center focus:placeholder-transparent focus:outline-none focus:ring-2 focus:ring-gray-200"
-                placeholder="Search annotations or comments"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery ? (
+        {pageTab === 'annotate' && (
+          <div className="absolute left-1/2 -translate-x-1/2 px-4 w-full max-w-md pointer-events-none z-40">
+            <div className="relative pointer-events-auto flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  className="w-full h-9 pl-3 pr-8 text-sm rounded-lg border border-gray-200 bg-white placeholder:text-gray-400 placeholder:text-center focus:placeholder-transparent focus:outline-none focus:ring-2 focus:ring-gray-200"
+                  placeholder="Search annotations or comments"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery ? (
+                  <button
+                    className="absolute right-1.5 top-1.5 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-gray-100"
+                    onClick={() => setSearchQuery('')}
+                    title="Clear"
+                  >
+                    <img src={xIcon} alt="" className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+              <div className="relative">
                 <button
-                  className="absolute right-1.5 top-1.5 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-gray-100"
-                  onClick={() => setSearchQuery('')}
-                  title="Clear"
+                  className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
+                  onClick={() => { handleExportMarkdown() }}
+                  aria-label="Export highlights"
+                  title="Export"
                 >
-                  <img src={xIcon} alt="" className="h-3.5 w-3.5" />
+                  <img src={exportIcon} alt="" className="h-4 w-4" />
                 </button>
-              ) : null}
+              </div>
             </div>
-            <div className="relative">
+          </div>
+        )}
+        {pageTab === 'writing' && (
+          <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none z-40">
+            <div className="pointer-events-auto inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
               <button
-                className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
-                onClick={() => { handleExportMarkdown() }}
-                aria-label="Export highlights"
-                title="Export"
+                className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm ${editorFormat === 'p' ? 'bg-gray-200' : ''}`}
+                title="Normal Text"
+                onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'p' } }))}
               >
-                <img src={exportIcon} alt="" className="h-4 w-4" />
+                P
+              </button>
+              <button
+                className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm font-semibold ${editorBold ? 'bg-gray-200' : ''}`}
+                title="Bold"
+                onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'bold' } }))}
+              >
+                B
+              </button>
+              <button
+                className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm italic ${editorItalic ? 'bg-gray-200' : ''}`}
+                title="Italic"
+                onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'italic' } }))}
+              >
+                I
+              </button>
+              <div className="w-px h-5 bg-gray-200" />
+              <button
+                className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm font-semibold ${editorFormat === 'h1' ? 'bg-gray-200' : ''}`}
+                title="Heading 1"
+                onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'h1' } }))}
+              >
+                H1
+              </button>
+              <button
+                className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm font-semibold ${editorFormat === 'h2' ? 'bg-gray-200' : ''}`}
+                title="Heading 2"
+                onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'h2' } }))}
+              >
+                H2
+              </button>
+              <button
+                className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm font-semibold ${editorFormat === 'h3' ? 'bg-gray-200' : ''}`}
+                title="Heading 3"
+                onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'h3' } }))}
+              >
+                H3
+              </button>
+              <div className="w-px h-5 bg-gray-200" />
+              <button
+                className="h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+                title="Bullet List"
+                onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'list' } }))}
+              >
+                • List
+              </button>
+              <button
+                className="h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+                title="Link"
+                onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'link' } }))}
+              >
+                🔗
               </button>
             </div>
           </div>
-        </div>
+        )}
         <div className="ml-auto flex items-center gap-3 min-w-0">
+          {pageTab === 'writing' && (
+            <button
+              className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
+              onClick={() => { handleExportWriting() }}
+              aria-label="Export notes"
+              title="Export"
+            >
+              <img src={exportIcon} alt="" className="h-4 w-4" />
+            </button>
+          )}
           <button
             className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white hover:bg-gray-50"
             onClick={onClose}
@@ -851,33 +1060,40 @@ export default function SplitPdf({ onClose, projectId, path, fileName }: SplitPd
           />
         </div>
         <div className="w-1/2 h-full min-w-0">
-          <SplitHighlights
-            highlights={rphHighlights}
-            onJumpTo={(id) => {
-              console.log('[PDF] onJumpTo clicked', id)
-              const target = rphHighlights.find((h) => h.id === id)
-              if (target) {
-                const pageNum = getPageNumberFromHighlight(target)
-                // Use smooth scrolling consistently for highlights
-                if (pageNum) scrollViewerToPage(pageNum)
-              } else {
-                console.warn('[PDF] onJumpTo: target not found in rphHighlights')
-              }
-            }}
-            onDelete={(id) => {
-              console.log('[PDF] delete highlight', id)
-              setRphHighlights((prev) => prev.filter((h) => h.id !== id))
-            }}
-            onChangeComment={(id, text) => {
-              setRphHighlights((prev) => prev.map((h) => h.id === id ? { ...h, comment: { ...(h.comment || {}), text } } : h))
-            }}
-            onJumpToPage={(page) => {
-              // Scroll the viewer to the given page number
-              scrollViewerToPage(page)
-            }}
-            activeTab={activeTab}
-            searchQuery={searchQuery}
-          />
+          {pageTab === 'writing' ? (
+            <SplitMarkdownEditor
+              projectId={projectId}
+              fileName={fileName}
+            />
+          ) : (
+            <SplitHighlights
+              highlights={rphHighlights}
+              onJumpTo={(id) => {
+                console.log('[PDF] onJumpTo clicked', id)
+                const target = rphHighlights.find((h) => h.id === id)
+                if (target) {
+                  const pageNum = getPageNumberFromHighlight(target)
+                  // Use smooth scrolling consistently for highlights
+                  if (pageNum) scrollViewerToPage(pageNum)
+                } else {
+                  console.warn('[PDF] onJumpTo: target not found in rphHighlights')
+                }
+              }}
+              onDelete={(id) => {
+                console.log('[PDF] delete highlight', id)
+                setRphHighlights((prev) => prev.filter((h) => h.id !== id))
+              }}
+              onChangeComment={(id, text) => {
+                setRphHighlights((prev) => prev.map((h) => h.id === id ? { ...h, comment: { ...(h.comment || {}), text } } : h))
+              }}
+              onJumpToPage={(page) => {
+                // Scroll the viewer to the given page number
+                scrollViewerToPage(page)
+              }}
+              activeTab={activeTab}
+              searchQuery={searchQuery}
+            />
+          )}
         </div>
       </div>
     </div>

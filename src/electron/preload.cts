@@ -41,6 +41,12 @@ contextBridge.exposeInMainWorld('api', {
       set: (projectId: string, pdfFileName: string, highlights: Array<{ id: string; position: unknown; content: unknown; comment?: unknown; createdAt?: string }>): Promise<{ ok: true }> =>
         ipcRenderer.invoke('projects:highlights:set', projectId, pdfFileName, highlights),
     },
+    markdown: {
+      get: (projectId: string, markdownFileName: string): Promise<string> =>
+        ipcRenderer.invoke('projects:markdown:get', projectId, markdownFileName),
+      set: (projectId: string, markdownFileName: string, content: string): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('projects:markdown:set', projectId, markdownFileName, content),
+    },
   },
   files: {
     readFileBase64: (absolutePath: string): Promise<string> =>

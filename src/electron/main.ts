@@ -493,6 +493,30 @@ async function writeKanbanStatuses(projectId: string, statuses: Record<string, s
     return { ok: true };
 }
 
+// Markdown notes persistence per project and file
+async function readMarkdown(projectId: string, markdownFileName: string): Promise<string> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) return '';
+    const storeFile = path.join(projectDir, 'notes', `${markdownFileName}`);
+    if (!existsSync(storeFile)) return '';
+    try {
+        const text = await fs.readFile(storeFile, 'utf-8');
+        return text;
+    } catch {}
+    return '';
+}
+
+async function writeMarkdown(projectId: string, markdownFileName: string, content: string): Promise<{ ok: true }> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    const notesDir = path.join(projectDir, 'notes');
+    await fs.mkdir(notesDir, { recursive: true });
+    const storeFile = path.join(notesDir, `${markdownFileName}`);
+    await fs.writeFile(storeFile, content, 'utf-8');
+    return { ok: true };
+}
+
 
 app.on('ready', () => {
     // In development, set the app/dock icon from the project root DocIcon.png
@@ -711,6 +735,13 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:highlights:set', async (_event, projectId: string, pdfFileName: string, highlights: HighlightRecord[]) => {
         return writeHighlights(projectId, pdfFileName, highlights);
+    });
+    // Markdown notes IPC
+    ipcMain.handle('projects:markdown:get', async (_event, projectId: string, markdownFileName: string) => {
+        return readMarkdown(projectId, markdownFileName);
+    });
+    ipcMain.handle('projects:markdown:set', async (_event, projectId: string, markdownFileName: string, content: string) => {
+        return writeMarkdown(projectId, markdownFileName, content);
     });
     ipcMain.handle('file:read-base64', async (_event, absolutePath: string) => {
         // Only allow reading files within userData/projects for safety

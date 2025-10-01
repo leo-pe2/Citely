@@ -114,7 +114,7 @@ export function exportHighlightsAsMarkdown({ highlights, fileName }: { highlight
 
   const output = chunks.join('\n')
   const blob = new Blob([output], { type: 'text/markdown;charset=utf-8' })
-  const downloadName = `markdown_${baseName}.md`
+  const downloadName = `annotations_${baseName}.md`
   createDownload(blob, downloadName)
   return { ok: true }
 }
