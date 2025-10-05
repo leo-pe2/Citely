@@ -211,6 +211,13 @@ input[type="reset"] {
   line-height: 1.4;
 }
 
+/* Reduce extra gap under the topbar when the document starts with a heading */
+.markdown-preview > h1:first-child,
+.markdown-preview > h2:first-child,
+.markdown-preview > h3:first-child {
+  margin-top: 0;
+}
+
 .markdown-preview p {
   margin-top: 0;
   margin-bottom: 1em;
