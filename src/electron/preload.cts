@@ -36,10 +36,16 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.invoke('projects:kanban:set', projectId, statuses),
     },
     highlights: {
-      get: (projectId: string, pdfFileName: string): Promise<unknown[]> =>
+      get: (projectId: string, pdfFileName: string): Promise<Array<{ id: string; position: unknown; content: unknown; comment?: unknown; createdAt?: string }>> =>
         ipcRenderer.invoke('projects:highlights:get', projectId, pdfFileName),
-      set: (projectId: string, pdfFileName: string, highlights: unknown[]): Promise<{ ok: true }> =>
+      set: (projectId: string, pdfFileName: string, highlights: Array<{ id: string; position: unknown; content: unknown; comment?: unknown; createdAt?: string }>): Promise<{ ok: true }> =>
         ipcRenderer.invoke('projects:highlights:set', projectId, pdfFileName, highlights),
+    },
+    markdown: {
+      get: (projectId: string, markdownFileName: string): Promise<string> =>
+        ipcRenderer.invoke('projects:markdown:get', projectId, markdownFileName),
+      set: (projectId: string, markdownFileName: string, content: string): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('projects:markdown:set', projectId, markdownFileName, content),
     },
   },
   files: {

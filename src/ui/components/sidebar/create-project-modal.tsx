@@ -40,7 +40,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, title = 
       role="dialog"
       aria-modal="true"
       onClick={onClose}
-   >
+    >
       <div className="absolute inset-0 bg-black/30" />
       <div
         className="relative z-10 w-full max-w-sm rounded-lg bg-white p-4 shadow-lg"
@@ -73,5 +73,4 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, title = 
     </div>
   )
 }
-
 

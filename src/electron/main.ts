@@ -411,6 +411,7 @@ type HighlightRecord = {
     position: unknown;
     content: unknown;
     comment?: unknown;
+    createdAt?: string;
 };
 
 async function readHighlights(projectId: string, pdfFileName: string): Promise<HighlightRecord[]> {
@@ -422,7 +423,14 @@ async function readHighlights(projectId: string, pdfFileName: string): Promise<H
     try {
         const text = await fs.readFile(storeFile, 'utf-8');
         const parsed = JSON.parse(text);
-        if (Array.isArray(parsed)) return parsed as HighlightRecord[];
+        if (Array.isArray(parsed)) {
+            // Backfill createdAt for older stored items
+            const withCreated: HighlightRecord[] = parsed.map((h: any) => {
+                if (typeof h?.createdAt === 'string' && h.createdAt) return h as HighlightRecord;
+                return { ...(h || {}), createdAt: new Date().toISOString() } as HighlightRecord;
+            });
+            return withCreated;
+        }
     } catch {}
     return [];
 }
@@ -433,18 +441,29 @@ async function writeHighlights(projectId: string, pdfFileName: string, highlight
     const hlDir = path.join(projectDir, 'highlights');
     await fs.mkdir(hlDir, { recursive: true });
     const storeFile = path.join(hlDir, `${pdfFileName}.json`);
-    await fs.writeFile(storeFile, JSON.stringify(highlights ?? [], null, 2), 'utf-8');
+    // Ensure each highlight has a createdAt timestamp (ISO date-time)
+    const toPersist: HighlightRecord[] = Array.isArray(highlights)
+        ? highlights.map((h: HighlightRecord) => {
+            const anyH: any = h as any;
+            if (typeof anyH?.createdAt === 'string' && anyH.createdAt) return h;
+            return { ...anyH, createdAt: new Date().toISOString() } as HighlightRecord;
+          })
+        : [];
+    await fs.writeFile(storeFile, JSON.stringify(toPersist, null, 2), 'utf-8');
     // Auto-promote kanban status to 'ongoing' if there are any highlights/screenshots for this PDF
     try {
+        const absolutePdfPath = path.join(projectDir, pdfFileName);
+        const current = await readKanbanStatuses(projectId);
+        const currentStatus = current[absolutePdfPath];
         if (Array.isArray(highlights) && highlights.length > 0) {
-            const absolutePdfPath = path.join(projectDir, pdfFileName);
-            const current = await readKanbanStatuses(projectId);
-            const currentStatus = current[absolutePdfPath];
             // Only promote if currently 'todo' or unset; never override explicit 'done'
             if (!currentStatus || currentStatus === 'todo') {
                 current[absolutePdfPath] = 'ongoing';
                 await writeKanbanStatuses(projectId, current);
             }
+        } else if (currentStatus === 'ongoing' || currentStatus === 'done') {
+            current[absolutePdfPath] = 'todo';
+            await writeKanbanStatuses(projectId, current);
         }
     } catch {}
     return { ok: true };
@@ -471,6 +490,30 @@ async function writeKanbanStatuses(projectId: string, statuses: Record<string, s
     await fs.mkdir(projectDir, { recursive: true });
     const file = path.join(projectDir, 'kanban.json');
     await fs.writeFile(file, JSON.stringify(statuses, null, 2), 'utf-8');
+    return { ok: true };
+}
+
+// Markdown notes persistence per project and file
+async function readMarkdown(projectId: string, markdownFileName: string): Promise<string> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    if (!existsSync(projectDir)) return '';
+    const storeFile = path.join(projectDir, 'notes', `${markdownFileName}`);
+    if (!existsSync(storeFile)) return '';
+    try {
+        const text = await fs.readFile(storeFile, 'utf-8');
+        return text;
+    } catch {}
+    return '';
+}
+
+async function writeMarkdown(projectId: string, markdownFileName: string, content: string): Promise<{ ok: true }> {
+    const root = await ensureProjectsRoot();
+    const projectDir = path.join(root, projectId);
+    const notesDir = path.join(projectDir, 'notes');
+    await fs.mkdir(notesDir, { recursive: true });
+    const storeFile = path.join(notesDir, `${markdownFileName}`);
+    await fs.writeFile(storeFile, content, 'utf-8');
     return { ok: true };
 }
 
@@ -620,7 +663,12 @@ app.on('ready', () => {
         if (!projectId) return { ok: true as const };
         try {
             const meta = await readProjectMetadata(projectId);
-            meta[normalized] = { ...(meta[normalized] || {}), lastUsedAt: new Date().toISOString().slice(0, 10) };
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const localDate = `${yyyy}-${mm}-${dd}`;
+            meta[normalized] = { ...(meta[normalized] || {}), lastUsedAt: localDate };
             await writeProjectMetadata(projectId, meta);
         } catch {}
         return { ok: true as const };
@@ -687,6 +735,13 @@ app.on('ready', () => {
     });
     ipcMain.handle('projects:highlights:set', async (_event, projectId: string, pdfFileName: string, highlights: HighlightRecord[]) => {
         return writeHighlights(projectId, pdfFileName, highlights);
+    });
+    // Markdown notes IPC
+    ipcMain.handle('projects:markdown:get', async (_event, projectId: string, markdownFileName: string) => {
+        return readMarkdown(projectId, markdownFileName);
+    });
+    ipcMain.handle('projects:markdown:set', async (_event, projectId: string, markdownFileName: string, content: string) => {
+        return writeMarkdown(projectId, markdownFileName, content);
     });
     ipcMain.handle('file:read-base64', async (_event, absolutePath: string) => {
         // Only allow reading files within userData/projects for safety

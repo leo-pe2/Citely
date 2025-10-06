@@ -18,7 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/ui/*"],
-      "@table/*": ["./src/ui/table/*"]
+      "@features/*": ["./src/ui/features/*"]
     }
   },
   "include": ["src"],
