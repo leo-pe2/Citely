@@ -264,7 +264,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                                 rows={1}
                                 autoFocus
                                 placeholder="Your comment"
-                                className="w-full px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm placeholder:text-sm placeholder-gray-400 focus:outline-none overflow-hidden resize-none"
+                                className="w-full px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm placeholder:text-sm placeholder-gray-400 border-none focus:outline-none focus:ring-0 overflow-hidden resize-none"
                                 value={h?.comment?.text ?? ''}
                                 onChange={(e) => onChangeComment(h.id, e.target.value)}
                                 onFocus={(e) => {
@@ -410,7 +410,7 @@ export default function SplitHighlights({ highlights, onJumpTo, onDelete, onChan
                                 rows={1}
                                 autoFocus
                                 placeholder="Your comment"
-                                className="w-full px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm placeholder:text-sm placeholder-gray-400 focus:outline-none overflow-hidden resize-none"
+                                className="w-full px-2 py-2 rounded-lg bg-gray-100 text-gray-900 text-sm placeholder:text-sm placeholder-gray-400 border-none focus:outline-none focus:ring-0 overflow-hidden resize-none"
                                 value={h?.comment?.text ?? ''}
                                 onChange={(e) => onChangeComment(h.id, e.target.value)}
                                 onFocus={(e) => {

@@ -1,6 +1,8 @@
 import React from 'react'
 import xIcon from '../../assets/x.svg'
 import exportIcon from '../../assets/export.svg'
+import listIcon from '../../assets/list.svg'
+import italicIcon from '../../assets/italic.svg'
 
 type SplitTopbarProps = {
   pageTab: 'annotate' | 'writing'
@@ -27,18 +29,22 @@ export default function SplitTopbar({
   onExportWriting,
   onClose,
 }: SplitTopbarProps) {
+  const controlBase = 'h-7 px-2 inline-flex items-center justify-center rounded text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-200'
+  const controlActive = 'bg-gray-200 text-gray-900 shadow-inner'
+  const controlInactive = 'text-gray-600 hover:bg-gray-100'
+
   return (
     <div className="relative flex items-center pl-6 pr-4 py-4 border-b border-gray-200">
       <div className="flex items-center gap-2 min-w-0">
         <nav className="inline-flex rounded-md border border-gray-200 bg-gray-50 p-0.5">
           <button
-            className={`px-2.5 py-1.5 text-sm rounded ${pageTab === 'annotate' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            className={`px-2.5 py-1.5 text-sm rounded-[5px] ${pageTab === 'annotate' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             onClick={() => onChangePageTab('annotate')}
           >
             Annotate
           </button>
           <button
-            className={`px-2.5 py-1.5 text-sm rounded ${pageTab === 'writing' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            className={`px-2.5 py-1.5 text-sm rounded-[5px] ${pageTab === 'writing' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             onClick={() => onChangePageTab('writing')}
           >
             Writing
@@ -82,62 +88,61 @@ export default function SplitTopbar({
         <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none z-40">
           <div className="pointer-events-auto inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
             <button
-              className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm ${editorFormat === 'p' ? 'bg-gray-200' : ''}`}
+              className={`${controlBase} ${editorFormat === 'p' ? controlActive : controlInactive}`}
               title="Normal Text"
+              aria-pressed={editorFormat === 'p'}
               onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'p' } }))}
             >
               P
             </button>
             <button
-              className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm font-semibold ${editorBold ? 'bg-gray-200' : ''}`}
+              className={`${controlBase} font-semibold ${editorBold ? controlActive : controlInactive}`}
               title="Bold"
+              aria-pressed={editorBold}
               onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'bold' } }))}
             >
               B
             </button>
             <button
-              className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm italic ${editorItalic ? 'bg-gray-200' : ''}`}
+              className={`${controlBase} ${editorItalic ? controlActive : controlInactive}`}
               title="Italic"
+              aria-pressed={editorItalic}
               onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'italic' } }))}
             >
-              I
+              <img src={italicIcon} alt="" className="h-3.5 w-3.5" />
             </button>
             <div className="w-px h-5 bg-gray-200" />
             <button
-              className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm font-semibold ${editorFormat === 'h1' ? 'bg-gray-200' : ''}`}
+              className={`${controlBase} font-semibold ${editorFormat === 'h1' ? controlActive : controlInactive}`}
               title="Heading 1"
+              aria-pressed={editorFormat === 'h1'}
               onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'h1' } }))}
             >
               H1
             </button>
             <button
-              className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm font-semibold ${editorFormat === 'h2' ? 'bg-gray-200' : ''}`}
+              className={`${controlBase} font-semibold ${editorFormat === 'h2' ? controlActive : controlInactive}`}
               title="Heading 2"
+              aria-pressed={editorFormat === 'h2'}
               onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'h2' } }))}
             >
               H2
             </button>
             <button
-              className={`h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm font-semibold ${editorFormat === 'h3' ? 'bg-gray-200' : ''}`}
+              className={`${controlBase} font-semibold ${editorFormat === 'h3' ? controlActive : controlInactive}`}
               title="Heading 3"
+              aria-pressed={editorFormat === 'h3'}
               onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'h3' } }))}
             >
               H3
             </button>
             <div className="w-px h-5 bg-gray-200" />
             <button
-              className="h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm"
+              className={`${controlBase} ${controlInactive}`}
               title="Bullet List"
               onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'list' } }))}
             >
-              • List
-            </button>
-            <button
-              className="h-7 px-2 inline-flex items-center justify-center rounded hover:bg-gray-100 text-sm"
-              title="Link"
-              onClick={() => window.dispatchEvent(new CustomEvent('markdown-insert', { detail: { type: 'link' } }))}
-            >
-              🔗
+              <img src={listIcon} alt="" className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -165,5 +170,3 @@ export default function SplitTopbar({
     </div>
   )
 }
-
-

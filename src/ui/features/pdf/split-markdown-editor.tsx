@@ -102,6 +102,7 @@ export default function SplitMarkdownEditor({ projectId, fileName }: SplitMarkdo
   const saveDebounceRef = React.useRef<number | null>(null)
   const lastSavedContentRef = React.useRef<string>('')
   const editorRef = React.useRef<HTMLDivElement | null>(null)
+  const formatUpdateRafRef = React.useRef<number | null>(null)
 
   // Derive markdown filename from PDF filename
   const markdownFileName = React.useMemo(() => {
@@ -375,13 +376,23 @@ export default function SplitMarkdownEditor({ projectId, fileName }: SplitMarkdo
     }
   }, [])
 
+  const requestFormatUpdate = React.useCallback(() => {
+    if (formatUpdateRafRef.current !== null) {
+      window.cancelAnimationFrame(formatUpdateRafRef.current)
+    }
+    formatUpdateRafRef.current = window.requestAnimationFrame(() => {
+      formatUpdateRafRef.current = null
+      updateCurrentFormat()
+    })
+  }, [updateCurrentFormat])
+
   // Update content from contentEditable
   const handleInput = React.useCallback((e: React.FormEvent<HTMLDivElement>) => {
     const htmlContent = e.currentTarget.innerHTML
     setContent(htmlContent)
     // Update format after typing
-    setTimeout(() => updateCurrentFormat(), 0)
-  }, [updateCurrentFormat])
+    requestFormatUpdate()
+  }, [requestFormatUpdate])
 
   // Always paste as plain text matching editor formatting (strip external styles/HTML)
   const handlePaste = React.useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -435,8 +446,58 @@ export default function SplitMarkdownEditor({ projectId, fileName }: SplitMarkdo
       }
     } catch {}
     // Update format after paste
-    setTimeout(() => updateCurrentFormat(), 0)
-  }, [updateCurrentFormat])
+    requestFormatUpdate()
+  }, [requestFormatUpdate])
+
+  const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey) return
+
+    const editor = editorRef.current
+    if (!editor) return
+
+    const selection = window.getSelection()
+    if (!selection || !selection.anchorNode) return
+
+    let node: Node | null = selection.anchorNode
+    while (node && node !== editor) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = (node as HTMLElement).tagName.toLowerCase()
+        if (tag === 'li') {
+          return
+        }
+      }
+      node = node.parentNode
+    }
+
+    e.preventDefault()
+
+    const inserted = document.execCommand('insertLineBreak')
+    if (!inserted) {
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0) return
+      const range = sel.getRangeAt(0)
+      range.deleteContents()
+      const br = document.createElement('br')
+      range.insertNode(br)
+      range.setStartAfter(br)
+      range.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(range)
+      if (editorRef.current) {
+        setContent(editorRef.current.innerHTML)
+      }
+    }
+
+    requestFormatUpdate()
+  }, [requestFormatUpdate])
+
+  const handleFocus = React.useCallback(() => {
+    requestFormatUpdate()
+  }, [requestFormatUpdate])
+
+  const handleMouseUp = React.useCallback(() => {
+    requestFormatUpdate()
+  }, [requestFormatUpdate])
 
   // Listen for selection/cursor changes
   React.useEffect(() => {
@@ -444,27 +505,35 @@ export default function SplitMarkdownEditor({ projectId, fileName }: SplitMarkdo
     if (!editor) return
 
     const handleSelectionChange = () => {
-      updateCurrentFormat()
+      requestFormatUpdate()
     }
 
     const handleKeyUp = () => {
-      updateCurrentFormat()
+      requestFormatUpdate()
     }
 
     const handleClick = () => {
-      updateCurrentFormat()
+      requestFormatUpdate()
     }
 
     document.addEventListener('selectionchange', handleSelectionChange)
     editor.addEventListener('keyup', handleKeyUp)
     editor.addEventListener('click', handleClick)
+    editor.addEventListener('mouseup', handleMouseUp)
+    editor.addEventListener('focus', handleFocus)
 
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange)
       editor.removeEventListener('keyup', handleKeyUp)
       editor.removeEventListener('click', handleClick)
+      editor.removeEventListener('mouseup', handleMouseUp)
+      editor.removeEventListener('focus', handleFocus)
+      if (formatUpdateRafRef.current !== null) {
+        window.cancelAnimationFrame(formatUpdateRafRef.current)
+        formatUpdateRafRef.current = null
+      }
     }
-  }, [updateCurrentFormat])
+  }, [requestFormatUpdate, handleMouseUp, handleFocus])
 
   // Set initial content on editor when loaded
   React.useEffect(() => {
@@ -492,6 +561,9 @@ export default function SplitMarkdownEditor({ projectId, fileName }: SplitMarkdo
         className="w-full min-h-full p-8 text-[15px] leading-relaxed text-gray-900 outline-none prose prose-sm max-w-none markdown-preview"
         onInput={handleInput}
         onPaste={handlePaste}
+        onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        onMouseUp={handleMouseUp}
         style={{
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         }}
@@ -500,5 +572,3 @@ export default function SplitMarkdownEditor({ projectId, fileName }: SplitMarkdo
     </div>
   )
 }
-
-
