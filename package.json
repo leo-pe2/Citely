@@ -1,7 +1,9 @@
 {
-  "name": "research.app",
+  "name": "Citely",
   "private": true,
   "version": "0.0.0",
+  "description": "A desktop app for citing and annotating research PDFs with export.",
+  "author": "Leonard Penzenstadler",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
