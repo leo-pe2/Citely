@@ -519,6 +519,13 @@ async function writeMarkdown(projectId: string, markdownFileName: string, conten
 
 
 app.on('ready', () => {
+    // Register critical IPC early to avoid race conditions with renderer load
+    ipcMain.handle('projects:list', async () => {
+        return listProjects();
+    });
+    ipcMain.handle('projects:create', async (_event, name: string) => {
+        return createProject(name);
+    });
     // In development, set the app/dock icon from the project root DocIcon.png
     if (isDev) {
         const devIconPathPng = path.join(app.getAppPath(), 'DocIcon.png');
@@ -539,6 +546,13 @@ app.on('ready', () => {
         }
     }
 
+    // Resolve preload path both in asar and when unpacked via extraResources
+    const preloadPath = (() => {
+        const inAsar = path.join(__dirname, 'preload.cjs');
+        if (existsSync(inAsar)) return inAsar;
+        return path.join(process.resourcesPath, 'dist-electron', 'preload.cjs');
+    })();
+
     const mainWindow = new BrowserWindow({
         width: 1400,
         height: 900,
@@ -555,7 +569,7 @@ app.on('ready', () => {
         webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,
-            preload: path.join(__dirname, 'preload.cjs'),
+            preload: preloadPath,
         },
         ...(isDev
             ? { icon: existsSync(path.join(app.getAppPath(), 'DocIcon.ico'))
@@ -611,13 +625,7 @@ app.on('ready', () => {
         // Failed to initialize screenshots tool; IPC will return an error
         screenshots = null;
     }
-    // IPC handlers
-    ipcMain.handle('projects:list', async () => {
-        return listProjects();
-    });
-    ipcMain.handle('projects:create', async (_event, name: string) => {
-        return createProject(name);
-    });
+    // IPC handlers (remaining)
     ipcMain.handle('projects:delete', async (_event, idOrPath: string) => {
         return deleteProject(idOrPath);
     });

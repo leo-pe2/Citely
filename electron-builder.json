@@ -1,5 +1,6 @@
 {
-    "appId": "com.leonard-penzenstadler.reseach",
+    "appId": "com.leonard-penzenstadler.citely",
+    "productName": "Citely",
     "files": [
       "dist-electron/**",
       "dist-react/**",
@@ -12,16 +13,19 @@
     "icon": "./DocIcon.png",
     "mac": {
       "target": "dmg",
-      "icon": "./DocIcon.icns"
+      "icon": "./DocIcon.icns",
+      "artifactName": "Citely-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "target": "AppImage",
       "category": "Utility",
-      "icon": "./DocIcon.png"
+      "icon": "./DocIcon.png",
+      "artifactName": "Citely-${version}-linux-${arch}.${ext}"
     },
     "win": {
       "target": ["portable", "msi"],
-      "icon": "./DocIcon.ico"
+      "icon": "./DocIcon.ico",
+      "artifactName": "Citely-${version}-win-${arch}.${ext}"
     },
     "npmRebuild": false,
     "buildDependenciesFromSource": false
