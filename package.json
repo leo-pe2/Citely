@@ -7,7 +7,6 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "license": "GPL-3.0-only",
-  "author": "Leonard Penzenstadler",
   "homepage": "not available yet",
   "repository": {
     "type": "git",
